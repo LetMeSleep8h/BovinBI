@@ -1,0 +1,26 @@
+version: "3.8"
+
+# BovinBI 生产形态演示:MySQL 8 承载平台元数据 + 分析数据仓(表名 dwh_ 前缀区分)
+# 用法: docker compose -f docker/docker-compose.yml up -d
+# 之后以 --spring.profiles.active=mysql 启动后端
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: bovinbi-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: bovin_bi
+      MYSQL_USER: bovin
+      MYSQL_PASSWORD: bovin123
+      TZ: Asia/Shanghai
+    volumes:
+      - bovinbi-mysql-data:/var/lib/mysql
+      - ../sql/mysql-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  bovinbi-mysql-data:

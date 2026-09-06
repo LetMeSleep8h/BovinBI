@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3307/bovin_bi?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: bovin
+    password: bovin123
+  sql:
+    init:
+      mode: never
+
+bovin:
+  dwh:
+    # 生产形态:分析查询走独立数据源(可指向只读副本/数仓)
+    url: jdbc:mysql://localhost:3307/bovin_bi?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: bovin
+    password: bovin123

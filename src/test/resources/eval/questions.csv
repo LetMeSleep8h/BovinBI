@@ -1,0 +1,124 @@
+question,must_contain
+总产奶量,sum(m.milk_yield)
+今年产奶量,sum(m.milk_yield)
+去年产奶量,sum(m.milk_yield)
+上个月产奶量,sum(m.milk_yield)
+近30天产奶量,sum(m.milk_yield)
+总平均单产,avg(m.milk_yield)
+今年平均单产,avg(m.milk_yield)
+去年平均单产,avg(m.milk_yield)
+上个月平均单产,avg(m.milk_yield)
+近30天平均单产,avg(m.milk_yield)
+总乳脂率,avg(m.fat_rate)
+今年乳脂率,avg(m.fat_rate)
+去年乳脂率,avg(m.fat_rate)
+上个月乳脂率,avg(m.fat_rate)
+近30天乳脂率,avg(m.fat_rate)
+总乳蛋白率,avg(m.protein_rate)
+今年乳蛋白率,avg(m.protein_rate)
+去年乳蛋白率,avg(m.protein_rate)
+上个月乳蛋白率,avg(m.protein_rate)
+近30天乳蛋白率,avg(m.protein_rate)
+总泌乳牛数,count(distinct m.cattle_id)
+今年泌乳牛数,count(distinct m.cattle_id)
+去年泌乳牛数,count(distinct m.cattle_id)
+上个月泌乳牛数,count(distinct m.cattle_id)
+近30天泌乳牛数,count(distinct m.cattle_id)
+近12个月每月产奶量趋势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+今年每月产奶量趋势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+去年每月产奶量趋势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+2026年每月产奶量趋势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+近6个月每月产奶量趋势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+每月产奶量走势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m')"
+近12个月每月平均单产趋势,"avg(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+今年每月平均单产趋势,"avg(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+去年每月平均单产趋势,"avg(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+2026年每月平均单产趋势,"avg(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+近6个月每月平均单产趋势,"avg(m.milk_yield)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+每月平均单产走势,"avg(m.milk_yield)|date_format(m.record_date,'%y-%m')"
+近12个月每月乳脂率趋势,"avg(m.fat_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+今年每月乳脂率趋势,"avg(m.fat_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+去年每月乳脂率趋势,"avg(m.fat_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+2026年每月乳脂率趋势,"avg(m.fat_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+近6个月每月乳脂率趋势,"avg(m.fat_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+每月乳脂率走势,"avg(m.fat_rate)|date_format(m.record_date,'%y-%m')"
+近12个月每月乳蛋白率趋势,"avg(m.protein_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+今年每月乳蛋白率趋势,"avg(m.protein_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+去年每月乳蛋白率趋势,"avg(m.protein_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+2026年每月乳蛋白率趋势,"avg(m.protein_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+近6个月每月乳蛋白率趋势,"avg(m.protein_rate)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+每月乳蛋白率走势,"avg(m.protein_rate)|date_format(m.record_date,'%y-%m')"
+近12个月每月泌乳牛数趋势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+今年每月泌乳牛数趋势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+去年每月泌乳牛数趋势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+2026年每月泌乳牛数趋势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+近6个月每月泌乳牛数趋势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m')|groupby1|orderby1"
+每月泌乳牛数走势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m')"
+近30天每天产奶量趋势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m-%d')"
+近7天每天产奶量趋势,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m-%d')"
+近30天每天泌乳牛数趋势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m-%d')"
+近7天每天泌乳牛数趋势,"count(distinct m.cattle_id)|date_format(m.record_date,'%y-%m-%d')"
+产奶量Top10牧场,sum(m.milk_yield)|f.farm_name|orderby2desc|limit10
+平均单产Top10牧场,avg(m.milk_yield)|f.farm_name|orderby2desc|limit10
+乳脂率Top10牧场,avg(m.fat_rate)|f.farm_name|orderby2desc|limit10
+乳蛋白率Top10牧场,avg(m.protein_rate)|f.farm_name|orderby2desc|limit10
+泌乳牛数Top10牧场,count(distinct m.cattle_id)|f.farm_name|orderby2desc|limit10
+产奶量Top10品种,sum(m.milk_yield)|c.breed|orderby2desc|limit10
+平均单产Top10品种,avg(m.milk_yield)|c.breed|orderby2desc|limit10
+乳脂率Top10品种,avg(m.fat_rate)|c.breed|orderby2desc|limit10
+乳蛋白率Top10品种,avg(m.protein_rate)|c.breed|orderby2desc|limit10
+泌乳牛数Top10品种,count(distinct m.cattle_id)|c.breed|orderby2desc|limit10
+产奶量Top10牛舍,sum(m.milk_yield)|c.barn|orderby2desc|limit10
+平均单产Top10牛舍,avg(m.milk_yield)|c.barn|orderby2desc|limit10
+乳脂率Top10牛舍,avg(m.fat_rate)|c.barn|orderby2desc|limit10
+乳蛋白率Top10牛舍,avg(m.protein_rate)|c.barn|orderby2desc|limit10
+泌乳牛数Top10牛舍,count(distinct m.cattle_id)|c.barn|orderby2desc|limit10
+今年产奶量前5的牧场,sum(m.milk_yield)|f.farm_name|orderby2desc|limit5
+上个月产奶量前5的牧场,sum(m.milk_yield)|f.farm_name|orderby2desc|limit5
+近3个月产奶量前5的牧场,sum(m.milk_yield)|f.farm_name|orderby2desc|limit5
+产奶量最高的10个品种,sum(m.milk_yield)|c.breed|orderby2desc|limit10
+乳脂率最差的5个牧场,avg(m.fat_rate)|f.farm_name|orderby2asc|limit5
+产奶量各牧场占比,sum(m.milk_yield)|f.farm_name
+上个月各牧场的产奶量分布,sum(m.milk_yield)|f.farm_name
+泌乳牛数各牧场占比,count(distinct m.cattle_id)|f.farm_name
+上个月各牧场的泌乳牛数分布,count(distinct m.cattle_id)|f.farm_name
+产奶量各品种占比,sum(m.milk_yield)|c.breed
+上个月各品种的产奶量分布,sum(m.milk_yield)|c.breed
+泌乳牛数各品种占比,count(distinct m.cattle_id)|c.breed
+上个月各品种的泌乳牛数分布,count(distinct m.cattle_id)|c.breed
+产奶量各地区占比,sum(m.milk_yield)|f.region
+上个月各地区的产奶量分布,sum(m.milk_yield)|f.region
+泌乳牛数各地区占比,count(distinct m.cattle_id)|f.region
+上个月各地区的泌乳牛数分布,count(distinct m.cattle_id)|f.region
+产奶量各牧场规模占比,sum(m.milk_yield)|f.scale
+上个月各牧场规模的产奶量分布,sum(m.milk_yield)|f.scale
+泌乳牛数各牧场规模占比,count(distinct m.cattle_id)|f.scale
+上个月各牧场规模的泌乳牛数分布,count(distinct m.cattle_id)|f.scale
+产奶量各泌乳阶段占比,sum(m.milk_yield)|m.lactation_stage
+上个月各泌乳阶段的产奶量分布,sum(m.milk_yield)|m.lactation_stage
+泌乳牛数各泌乳阶段占比,count(distinct m.cattle_id)|m.lactation_stage
+上个月各泌乳阶段的泌乳牛数分布,count(distinct m.cattle_id)|m.lactation_stage
+产奶量各牛舍占比,sum(m.milk_yield)|c.barn
+上个月各牛舍的产奶量分布,sum(m.milk_yield)|c.barn
+泌乳牛数各牛舍占比,count(distinct m.cattle_id)|c.barn
+上个月各牛舍的泌乳牛数分布,count(distinct m.cattle_id)|c.barn
+产奶量环比,sum(m.milk_yield)
+泌乳牛数环比,count(distinct m.cattle_id)
+乳脂率环比,avg(m.fat_rate)
+上个月产奶量环比,sum(m.milk_yield)
+今年产奶量同比,sum(m.milk_yield)
+工作日和周末的产奶量对比,sum(m.milk_yield)|casewhendayofweek
+工作日和周末的泌乳牛数对比,count(distinct m.cattle_id)|casewhendayofweek
+各季度产奶量,sum(m.milk_yield)|quarter(m.record_date)
+今年各季度乳脂率,avg(m.fat_rate)|quarter(m.record_date)
+西北地区牧场的产奶量,sum(m.milk_yield)|f.region='西北'
+大型牧场的平均单产,avg(m.milk_yield)|f.scale='大型'
+荷斯坦牛的产奶量,sum(m.milk_yield)|c.breed='荷斯坦'
+娟姗牛的乳脂率,avg(m.fat_rate)|c.breed='娟姗'
+泌乳初期的产奶量,sum(m.milk_yield)|m.lactation_stage='泌乳初期'
+泌乳后期的乳蛋白率,avg(m.protein_rate)|m.lactation_stage='泌乳后期'
+周末的产奶量,"sum(m.milk_yield)|dayofweek(m.record_date)in(1,7)"
+近3个月每月各品种产奶量,"sum(m.milk_yield)|c.breed|date_format(m.record_date,'%y-%m')"
+2026年每月各地区泌乳牛数,"count(distinct m.cattle_id)|f.region|date_format(m.record_date,'%y-%m')"
+今年每月各泌乳阶段的产奶量,"sum(m.milk_yield)|m.lactation_stage|date_format(m.record_date,'%y-%m')"
+近6个月每月大型牧场的产奶量,"sum(m.milk_yield)|date_format(m.record_date,'%y-%m')|f.scale='大型'"

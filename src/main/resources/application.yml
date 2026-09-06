@@ -1,0 +1,66 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: BovinBI
+  datasource:
+    # 默认使用 H2 文件数据库(MySQL 兼容模式),零安装即可演示;生产用 --spring.profiles.active=mysql 切换
+    url: jdbc:h2:file:./data/bovinbi;MODE=MySQL;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+bovin:
+  chat:
+    # LLM 生成失败/超时时是否回退到内置规则引擎(保证演示不中断)
+    fallback-to-rule: true
+    max-rows: 1000
+    query-timeout-seconds: 8
+  cache:
+    ttl-seconds: 600
+    max-size: 512
+  security:
+    jwt-secret: bovinbi-dev-secret-key-please-change-in-prod-0123456789
+    jwt-ttl-hours: 24
+  llm:
+    # LangChain4j 接入(对齐 SuperSonic): provider: mock=离线规则引擎(无需API Key) / openai=OpenAI 兼容协议
+    # base-url 可选: DeepSeek https://api.deepseek.com / 通义千问 https://dashscope.aliyuncs.com/compatible-mode/v1 / GLM / OpenAI
+    provider: openai
+    base-url: https://api.deepseek.com
+    api-key:
+    model: deepseek-chat
+    temperature: 0.0
+    timeout-seconds: 40
+    max-retries: 2
+    log-requests: false
+    log-responses: false
+  dwh:
+    # 留空 = 复用主数据源(演示);生产建议独立只读数据源
+    url: ""
+    username: ""
+    password: ""
+
+logging:
+  level:
+    com.eighthours.bovinbi: info

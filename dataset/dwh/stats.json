@@ -1,0 +1,25 @@
+{
+  "source": "UCI Online Retail (https://archive.ics.uci.edu/dataset/352/online+retail), CC BY 4.0",
+  "source_rows": 541909,
+  "clean_rows": 397884,
+  "fact_rows": 42006,
+  "customers": 3781,
+  "products": 3072,
+  "categories": [
+    "其他",
+    "卫浴清洁",
+    "厨房餐饮",
+    "园艺户外",
+    "家居装饰",
+    "收纳储物",
+    "文具礼品",
+    "服饰配饰",
+    "灯烛照明",
+    "玩具游戏"
+  ],
+  "date_min": "2025-08-23",
+  "date_max": "2026-08-31",
+  "total_revenue": 903202.26,
+  "total_orders": 13099,
+  "date_shift_days": 5379
+}

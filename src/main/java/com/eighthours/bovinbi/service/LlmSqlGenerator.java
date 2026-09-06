@@ -15,19 +15,15 @@ import java.util.Map;
 
 /**
  * LLM 版 SQL 生成器:单轮生成 + 一次纠错重试(self-repair)。
- * 对齐 SuperSonic 的 OnePassSCSqlGenStrategy:
  * - 提示词结构 #Role/#Task/#Rules/#Exemplars(系统模板) + #Schema/#SideInfo/#Question(变量化);
- * - 用 LangChain4j PromptTemplate 做变量填充(对应其 PromptTemplate.from(...).apply(variable));
- * - SideInfo 携带已解析的时间区间与今天日期(对应其 buildSideInformation)。
+ * - 用 LangChain4j PromptTemplate 做变量填充;
+ * - SideInfo 携带已解析的时间区间与今天日期,时间理解不依赖 LLM。
  */
 @Slf4j
 @Component
 public class LlmSqlGenerator implements SqlGenerator {
 
-    /**
-     * 变量化查询模板(对齐 SuperSonic INSTRUCTION 的 #Query 段:
-     * Question:{{question}},Schema:{{schema}},SideInfo:{{information}})
-     */
+    /** 变量化查询模板:少样本 → 紧凑 Schema → 时间侧信息 → 用户问题 */
     private static final String USER_TEMPLATE = """
             #Exemplars: {{exemplar}}
             #Schema: {{schema}}

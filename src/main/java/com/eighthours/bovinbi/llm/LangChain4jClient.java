@@ -18,7 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * LangChain4j 客户端(替换原手写 WebClient 版,对齐 SuperSonic 的模型接入方式):
+ * LangChain4j 客户端:
  * ChatLanguageModel 由 ModelProvider 按配置路由构建,业务代码只面向 LlmClient 抽象。
  * provider=mock 时不构建模型实例,调用即抛错,由管线降级到规则引擎。
  */

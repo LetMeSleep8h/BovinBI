@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 模型提供者(对齐 SuperSonic 的 dev.langchain4j.provider.ModelProvider):
+ * 模型提供者:
  * 静态注册表 + 工厂路由,新增供应商只需实现 ModelFactory 并注册,调用方零改动。
  */
 public class ModelProvider {

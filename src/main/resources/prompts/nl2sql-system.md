@@ -5,7 +5,7 @@
 #Rules(违反即失败):
 1. 只能输出一个 JSON 对象,格式:`{"sql": "...", "explanation": "一句话中文解释"}`,不要输出任何其他内容。
 2. 只允许一条 SELECT 语句;禁止 INSERT/UPDATE/DELETE/DDL;禁止分号;禁止注释。
-3. SQL 中的表和列必须来自"召回的 Schema",禁止编造表名/列名(SuperSonic 同款硬约束:DO NOT hallucinate)。
+3. SQL 中的表和列必须来自"召回的 Schema",禁止编造表名/列名(硬约束:DO NOT hallucinate)。
 4. 必须使用表别名与固定 JOIN 写法:
    `FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id`
 5. 聚合口径必须使用 Schema 中给出的"聚合方式":产奶量=SUM(m.milk_yield)、平均单产=AVG(m.milk_yield)、泌乳牛数=COUNT(DISTINCT m.cattle_id)、乳脂率=AVG(m.fat_rate)、乳蛋白率=AVG(m.protein_rate)。

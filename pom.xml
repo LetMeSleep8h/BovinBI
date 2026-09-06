@@ -21,7 +21,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.8.5</springdoc.version>
         <commons-csv.version>1.11.0</commons-csv.version>
-        <!-- 与 SuperSonic 对齐的 LangChain4j 版本 -->
+        <!-- LLM 编排框架版本 -->
         <langchain4j.version>0.36.2</langchain4j.version>
     </properties>
 
@@ -86,8 +86,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- LLM 编排:LangChain4j(与 SuperSonic 同款,对齐其 ModelProvider/ModelFactory 结构;
-             langchain4j-open-ai 基于 OpenAI 兼容协议,DeepSeek/通义千问/GLM/OpenAI 通用) -->
+        <!-- LLM 编排:LangChain4j;langchain4j-open-ai 基于 OpenAI 兼容协议,DeepSeek/通义千问/GLM/OpenAI 通用 -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j</artifactId>

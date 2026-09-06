@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * 聊天模型配置(对齐 SuperSonic 的 ChatModelConfig):描述一次模型接入的全部参数,
+ * 聊天模型配置:描述一次模型接入的全部参数,
  * 由 ModelProvider 按 provider 路由到具体 ModelFactory 构建模型实例。
  */
 @Data

@@ -1,10 +1,10 @@
 # BovinBI · 对话式商业智能(ChatBI)
 
-> 受腾讯开源 ChatBI 项目 [SuperSonic](https://github.com/tencentmusic/supersonic) 启发的极简复刻版:
+> 面向业务人员的对话式商业智能(ChatBI)平台:
 > 用户用自然语言提问 → 系统自动完成 **时间解析 → 语义缓存 → Schema 召回 → SQL 生成(LLM+规则双引擎) → AST 级安全守护 → 只读执行 → 智能图表推荐** 的全链路。
 >
 > **业务域:智慧牧场·奶牛养殖**(6 牧场 · 1,200 头泌乳牛 · 36,984 条挤奶记录,合成数据集,业务规律可审计、可复现),
-> **LLM 编排层使用 LangChain4j**(与 SuperSonic 同版本同结构,对齐其 ModelProvider/ModelFactory/PromptTemplate 实现),
+> **LLM 编排层使用 LangChain4j**(ModelProvider/ModelFactory 工厂路由 + PromptTemplate 变量化提示词),
 > **零安装即可演示**(内置 H2,一条命令切 MySQL 生产形态),支持任意 OpenAI 兼容大模型(DeepSeek / 通义千问 / GLM / OpenAI),离线规则模式同样完整可用。
 
 ![tech](https://img.shields.io/badge/Java-21-blue) ![tech](https://img.shields.io/badge/Spring%20Boot-3.5.x-brightgreen) ![tech](https://img.shields.io/badge/LangChain4j-0.36.2-orange) ![tech](https://img.shields.io/badge/Vue-3.5-409eff)
@@ -32,23 +32,21 @@ java -jar target/BovinBI-1.0.0.jar        # 或 mvn spring-boot:run
 - **质量评测**:123 条评测集一条命令回归,规则引擎结构准确率 100%(`eval-report.md`)
 - **语义层**:数据集/维度/指标/同义词/口径描述,业务黑话(奶量/头数/单产)即时生效
 
-## 与 SuperSonic 的源码级对齐
+## LLM 接入设计
 
-| SuperSonic 原实现 | BovinBI 对应实现 |
-| --- | --- |
-| `dev.langchain4j.provider.ModelProvider` 静态注册表 | `llm/ModelProvider`(同名同职责,按 provider 路由) |
-| `OpenAiModelFactory`(OpenAiChatModel.builder) | `llm/OpenAiModelFactory`(逐行对齐,同版本 0.36.2) |
-| `ChatModelConfig` 模型配置 POJO | `llm/ChatModelConfig` |
-| `OnePassSCSqlGenStrategy`:`#Role/#Task/#Rules/#Exemplars` 提示词 + `PromptTemplate.from(...).apply(variables)` | `prompts/nl2sql-system.md` 同结构提示词 + LangChain4j `PromptTemplate` 变量化(`#Schema/#SideInfo/#Question`) |
-| `buildSideInformation`(时间/日期注入) | SideInfo 段(今天日期 + 已解析时间区间) |
-| Dataset/Dimension/Metric 语义层 | Dataset/DatasetField(维度/指标/同义词/口径) |
+- `llm/ModelProvider`:静态注册表 + 工厂路由,新增模型供应商零侵入接入
+- `llm/OpenAiModelFactory`:OpenAI 兼容协议工厂(DeepSeek / 通义千问 / GLM / OpenAI 通用)
+- `llm/ChatModelConfig`:模型接入参数 POJO(provider/baseUrl/apiKey/model/温度/重试/超时)
+- `prompts/nl2sql-system.md`:`#Role/#Task/#Rules/#Exemplars` 四段系统提示词 + `#Schema/#SideInfo/#Question` 变量化用户模板(LangChain4j `PromptTemplate` 填充)
+- SideInfo 段注入今天日期与已解析时间区间,时间理解不依赖 LLM
+- 语义层:Dataset/DatasetField(维度/指标/同义词/口径)
 
 ## 技术栈
 
 | 层 | 技术 |
 | --- | --- |
 | 后端 | Java 21 · Spring Boot 3.5 · MyBatis-Plus · JSqlParser · Caffeine · jjwt · springdoc |
-| LLM | **LangChain4j 0.36.2**(OpenAI 兼容协议,与 SuperSonic 同款 ModelProvider/ModelFactory 结构),可切换 mock 规则引擎 |
+| LLM | **LangChain4j 0.36.2**(OpenAI 兼容协议,ModelProvider/ModelFactory 工厂路由),可切换 mock 规则引擎 |
 | 前端 | Vue 3 · TypeScript · Vite · Element Plus · Pinia · Vue Router · ECharts · Axios |
 | 数据 | 智慧牧场·奶牛养殖合成数据集(星型模型);默认 H2,生产 MySQL 8 |
 
@@ -99,11 +97,11 @@ BovinBI/
 ├── src/main/java/com/eighthours/bovinbi/
 │   ├── service/        # 六步管线:TimeRangeParser/SchemaLinker/Rule+LlmSqlGenerator/
 │   │                   #           SqlGuard/QueryExecutor/ChartAdvisor/SemanticCache/Nl2SqlService
-│   ├── llm/            # LangChain4j 接入(对齐 SuperSonic):ModelProvider/ModelFactory/
+│   ├── llm/            # LangChain4j 接入:ModelProvider/ModelFactory/
 │   │                   #           OpenAiModelFactory/LangChain4jClient
 │   ├── controller/ service/ entity/ mapper/ dto/ security/ config/ init/
 ├── src/main/resources/
-│   ├── prompts/nl2sql-system.md   # NL2SQL 提示词(#Role/#Task/#Rules/#Exemplars,SuperSonic 同构)
+│   ├── prompts/nl2sql-system.md   # NL2SQL 提示词(#Role/#Task/#Rules/#Exemplars)
 │   └── dataset/dwh/*.csv          # 牧场星型模型数据(DataLoader 启动自动装载)
 ├── frontend/           # Vue3 + TS + Element Plus + ECharts
 ├── dataset/            # build_bovine_dwh.py:合成数据集生成器(固定种子,可复现)
@@ -118,7 +116,7 @@ BovinBI/
 
 | 文档 | 内容 |
 | --- | --- |
-| [docs/01-数据流程设计.md](docs/01-数据流程设计.md) | 六步管线详解 + 与 SuperSonic 的对应关系 + 扩展路线 |
+| [docs/01-数据流程设计.md](docs/01-数据流程设计.md) | 六步管线详解 + 设计取舍 + 扩展路线 |
 | [docs/02-简历量化结果.md](docs/02-简历量化结果.md) | 可直接写进简历的量化条目(每个数字给出处和复现命令) |
 | [docs/03-项目重难点.md](docs/03-项目重难点.md) | 8 个真实难点:问题→定位→方案对比→量化结果 |
 | [docs/04-面试宝典.md](docs/04-面试宝典.md) | 30s/1min/3min 话术、高频 QA、系统设计变体、压力应对 |

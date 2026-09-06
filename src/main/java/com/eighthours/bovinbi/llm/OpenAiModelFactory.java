@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * OpenAI 兼容模型工厂(抄自 SuperSonic 的 dev.langchain4j.provider.OpenAiModelFactory):
+ * OpenAI 兼容模型工厂:
  * DeepSeek / 通义千问(DashScope compatible-mode) / GLM / OpenAI 均为 OpenAI 兼容协议,
  * 仅需替换 baseUrl 与 modelName 即可切换。
  */

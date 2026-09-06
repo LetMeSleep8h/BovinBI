@@ -58,4 +58,4 @@ mvn spring-boot:run                   # 后端启动时自动建表 + 装载,无
 ## 与语义层的对应
 
 启动时 `DataLoader` 自动把上述字段注册为「牧场养殖分析」数据集的语义层(维度/指标/同义词/口径),
-业务黑话如"奶量/头数/单产/乳脂"即可命中字段 —— 与 SuperSonic 的 Dataset/Dimension/Metric 模型同构。
+业务黑话如"奶量/头数/单产/乳脂"即可命中字段 —— 与通用语义层 Dataset/Dimension/Metric 的建模思想一致。

@@ -4,7 +4,6 @@ import com.eighthours.bovinbi.common.BizException;
 import com.eighthours.bovinbi.llm.LlmClient;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.PromptTemplate;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +19,6 @@ import java.util.Map;
  * - SideInfo 携带已解析的时间区间与今天日期,时间理解不依赖 LLM;
  * - 生成失败直接抛出,由 Nl2SqlService 的降级链接管(自修复 → 规则兜底),本类不自带重试。
  */
-@Slf4j
 @Component
 public class LlmSqlGenerator {
 

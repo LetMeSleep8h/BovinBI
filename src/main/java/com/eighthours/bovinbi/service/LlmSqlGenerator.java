@@ -14,18 +14,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * LLM 版 SQL 生成器:单轮生成 + 一次纠错重试(self-repair)。
+ * LLM 版 SQL 生成器:单轮生成 + 独立的自修复入口(repair)。
  * - 提示词结构 #Role/#Task/#Rules/#Exemplars(系统模板) + #Schema/#SideInfo/#Question(变量化);
  * - 用 LangChain4j PromptTemplate 做变量填充;
- * - SideInfo 携带已解析的时间区间与今天日期,时间理解不依赖 LLM。
+ * - SideInfo 携带已解析的时间区间与今天日期,时间理解不依赖 LLM;
+ * - 生成失败直接抛出,由 Nl2SqlService 的降级链接管(自修复 → 规则兜底),本类不自带重试。
  */
 @Slf4j
 @Component
-public class LlmSqlGenerator implements SqlGenerator {
+public class LlmSqlGenerator {
 
-    /** 变量化查询模板:少样本 → 紧凑 Schema → 时间侧信息 → 用户问题 */
+    /** 变量化查询模板:紧凑 Schema → 时间侧信息 → 用户问题 */
     private static final String USER_TEMPLATE = """
-            #Exemplars: {{exemplar}}
             #Schema: {{schema}}
             #SideInfo: {{side_info}}
             #Question: {{question}}""";
@@ -45,42 +45,34 @@ public class LlmSqlGenerator implements SqlGenerator {
         }
     }
 
-    @Override
     public SqlResult generate(SqlGenContext ctx) {
-        String userPrompt = buildUserPrompt(ctx, null, null);
-        for (int attempt = 1; attempt <= 2; attempt++) {
-            try {
-                String raw = llmClient.chat(systemTemplate, userPrompt);
-                var json = llmClient.extractJson(raw);
-                String sql = json.path("sql").asText("").trim();
-                if (sql.isEmpty()) {
-                    throw new BizException("模型未返回 SQL");
-                }
-                return new SqlResult(sql, json.path("explanation").asText(""), "LLM");
-            } catch (Exception e) {
-                log.warn("LLM 生成第 {} 次失败: {}", attempt, e.getMessage());
-                if (attempt == 2) {
-                    throw new BizException(502, "LLM 生成 SQL 失败: " + e.getMessage());
-                }
-                userPrompt = userPrompt + "\n\n上一次输出无法解析(" + e.getMessage() + "),请只输出一个合法 JSON 对象。";
-            }
+        try {
+            String raw = llmClient.chat(systemTemplate, buildUserPrompt(ctx, null, null));
+            return parse(raw);
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(502, "LLM 生成 SQL 失败: " + e.getMessage());
         }
-        throw new BizException(502, "LLM 生成 SQL 失败");
     }
 
     /** 执行失败后的自修复:把失败 SQL 与数据库错误反馈给模型,重写一次 */
     public SqlResult repair(SqlGenContext ctx, String failedSql, String dbError) {
-        String userPrompt = buildUserPrompt(ctx, failedSql, dbError);
-        String raw = llmClient.chat(systemTemplate, userPrompt);
+        String raw = llmClient.chat(systemTemplate, buildUserPrompt(ctx, failedSql, dbError));
+        return parse(raw);
+    }
+
+    /** 解析模型回复:容忍 markdown 代码块包裹,sql 为空视为失败 */
+    private SqlResult parse(String raw) {
         var json = llmClient.extractJson(raw);
         String sql = json.path("sql").asText("").trim();
         if (sql.isEmpty()) {
-            throw new BizException("模型未返回修正后的 SQL");
+            throw new BizException(502, "模型未返回 SQL");
         }
-        return new SqlResult(sql, json.path("explanation").asText("") + "(SQL 已经过自动修复)", "LLM(修复)");
+        return new SqlResult(sql, json.path("explanation").asText(""));
     }
 
-    /** 变量化组装用户提示:exemplar 预留动态少样本位,schema/side_info/question 为必填 */
+    /** 变量化组装用户提示:failedSql/dbError 非空时附加自修复段 */
     private String buildUserPrompt(SqlGenContext ctx, String failedSql, String dbError) {
         String sideInfo = "今天日期: " + LocalDate.now()
                 + ";时间理解: " + (ctx.timeRange() == null
@@ -88,8 +80,7 @@ public class LlmSqlGenerator implements SqlGenerator {
                 : "已解析为区间 [" + ctx.timeRange().start() + ", " + ctx.timeRange().endExclusive()
                 + ") 标签:" + ctx.timeRange().label());
         Map<String, Object> vars = new HashMap<>();
-        vars.put("exemplar", "");
-        vars.put("schema", ctx.schema().schemaText());
+        vars.put("schema", ctx.schemaText());
         vars.put("side_info", sideInfo);
         vars.put("question", ctx.question());
         Prompt prompt = userTemplate.apply(vars);

@@ -19,7 +19,8 @@ class RuleSqlGeneratorTest {
 
     private SqlResult gen(String question) {
         TimeRange tr = parser.parse(question);
-        return generator.generate(new SqlGenContext(question, tr, null));
+        // 规则引擎按领域口径硬编码,不消费 Schema 文本与白名单,传 null
+        return generator.generate(new SqlGenContext(question, tr, null, null));
     }
 
     private String norm(String sql) {

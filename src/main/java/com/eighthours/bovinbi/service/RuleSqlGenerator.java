@@ -10,12 +10,13 @@ import java.util.regex.Pattern;
 /**
  * 规则式 SQL 生成器(离线兜底引擎,口径:智慧牧场·奶牛养殖):
  * - provider=mock 时的主引擎,保证无 API Key 也能完整演示;
- * - provider=openai 时作为 LLM 失败后的降级引擎,保证演示不中断。
+ * - provider=openai 时作为 LLM 链路(生成/守护/执行/自修复)全部失败后的最终兜底。
  * 覆盖的问题形态:总体指标、时间趋势(含时间×维度)、TopN、占比、环比/同比、
  * 维度汇总、维度值过滤(地区/牧场规模/品种/泌乳阶段/周末等)。
+ * 注意:规则引擎按本数据集口径硬编码,不依赖 Schema 召回结果(那是 LLM 引擎的输入)。
  */
 @Component
-public class RuleSqlGenerator implements SqlGenerator {
+public class RuleSqlGenerator {
 
     private static final String FROM = """
             FROM dwh_fact_milk m
@@ -27,7 +28,6 @@ public class RuleSqlGenerator implements SqlGenerator {
     private record Dim(String alias, String expr) {
     }
 
-    @Override
     public SqlResult generate(SqlGenContext ctx) {
         String q = ctx.question();
         TimeRange tr = ctx.timeRange();
@@ -49,7 +49,7 @@ public class RuleSqlGenerator implements SqlGenerator {
                     LIMIT 1000""".formatted(
                     cur.label(), m.expr(), m.alias(), FROM, whereOf(cur, filter),
                     prev.label(), m.expr(), m.alias(), FROM, whereOf(prev, filter));
-            return new SqlResult(sql, "对比 %s 与 %s 的%s".formatted(cur.label(), prev.label(), m.alias()), "RULE");
+            return new SqlResult(sql, "对比 %s 与 %s 的%s".formatted(cur.label(), prev.label(), m.alias()));
         }
 
         // ---------- 同比 ----------
@@ -69,7 +69,7 @@ public class RuleSqlGenerator implements SqlGenerator {
                     LIMIT 1000""".formatted(
                     base.label(), m.expr(), m.alias(), FROM, whereOf(base, filter),
                     lastYear.label(), m.expr(), m.alias(), FROM, whereOf(lastYear, filter));
-            return new SqlResult(sql, "同比:对比 %s 与去年同期%s".formatted(base.label(), m.alias()), "RULE");
+            return new SqlResult(sql, "同比:对比 %s 与去年同期%s".formatted(base.label(), m.alias()));
         }
 
         // ---------- TopN ----------
@@ -87,7 +87,7 @@ public class RuleSqlGenerator implements SqlGenerator {
                     LIMIT %d""".formatted(d.expr(), d.alias(), m.expr(), m.alias(),
                     FROM, whereOf(tr, filter), asc ? "ASC" : "DESC", n);
             return new SqlResult(sql, "%s%sTop%d(%s)%s".formatted(
-                    tr == null ? "" : tr.label() + " ", d.alias(), n, m.alias(), asc ? ",升序" : ""), "RULE");
+                    tr == null ? "" : tr.label() + " ", d.alias(), n, m.alias(), asc ? ",升序" : ""));
         }
 
         // ---------- 占比/分布 ----------
@@ -100,7 +100,7 @@ public class RuleSqlGenerator implements SqlGenerator {
                     GROUP BY 1
                     ORDER BY 2 DESC
                     LIMIT 1000""".formatted(d.expr(), d.alias(), m.expr(), m.alias(), FROM, whereOf(tr, filter));
-            return new SqlResult(sql, "按%s统计%s%s".formatted(d.alias(), tr == null ? "" : tr.label(), m.alias()), "RULE");
+            return new SqlResult(sql, "按%s统计%s%s".formatted(d.alias(), tr == null ? "" : tr.label(), m.alias()));
         }
 
         // ---------- 时间趋势(支持 时间×维度 组合,如"每月各牧场产奶量") ----------
@@ -122,7 +122,7 @@ public class RuleSqlGenerator implements SqlGenerator {
                         ORDER BY 1
                         LIMIT 1000""".formatted(dateExpr, label, d.expr(), d.alias(), m.expr(), m.alias(), FROM, where);
                 return new SqlResult(sql, "按%s×%s统计%s%s".formatted(label, d.alias(),
-                        tr == null ? "" : tr.label(), m.alias()), "RULE");
+                        tr == null ? "" : tr.label(), m.alias()));
             }
             String sql = """
                     SELECT %s AS %s, %s AS %s
@@ -130,7 +130,7 @@ public class RuleSqlGenerator implements SqlGenerator {
                     GROUP BY 1
                     ORDER BY 1
                     LIMIT 1000""".formatted(dateExpr, label, m.expr(), m.alias(), FROM, where);
-            return new SqlResult(sql, "按%s统计%s%s趋势".formatted(label, tr == null ? "" : tr.label(), m.alias()), "RULE");
+            return new SqlResult(sql, "按%s统计%s%s趋势".formatted(label, tr == null ? "" : tr.label(), m.alias()));
         }
 
         // ---------- 按维度汇总 ----------
@@ -143,7 +143,7 @@ public class RuleSqlGenerator implements SqlGenerator {
                     GROUP BY 1
                     ORDER BY 2 DESC
                     LIMIT 1000""".formatted(d.expr(), d.alias(), m.expr(), m.alias(), FROM, whereOf(tr, filter));
-            return new SqlResult(sql, "按%s统计%s%s".formatted(d.alias(), tr == null ? "" : tr.label(), m.alias()), "RULE");
+            return new SqlResult(sql, "按%s统计%s%s".formatted(d.alias(), tr == null ? "" : tr.label(), m.alias()));
         }
 
         // ---------- 带维度值过滤的总指标(如"西北地区牧场的产奶量"/"泌乳初期的乳脂率") ----------
@@ -151,7 +151,7 @@ public class RuleSqlGenerator implements SqlGenerator {
             Metric m = metricOrDefault(q);
             String sql = "SELECT " + m.expr() + " AS " + m.alias() + "\n" + FROM
                     + whereOf(tr, filter) + "\nLIMIT 1000";
-            return new SqlResult(sql, (tr == null ? "" : tr.label()) + "满足条件的" + m.alias(), "RULE");
+            return new SqlResult(sql, (tr == null ? "" : tr.label()) + "满足条件的" + m.alias());
         }
 
         // ---------- 总体指标(必须显式提到指标,否则视为无法理解 → 走兜底) ----------
@@ -161,7 +161,7 @@ public class RuleSqlGenerator implements SqlGenerator {
         }
         String sql = "SELECT " + m.expr() + " AS " + m.alias() + "\n" + FROM
                 + whereOf(tr, null) + "\nLIMIT 1000";
-        return new SqlResult(sql, (tr == null ? "全部数据" : tr.label()) + "的" + m.alias() + "(" + m.desc() + ")", "RULE");
+        return new SqlResult(sql, (tr == null ? "全部数据" : tr.label()) + "的" + m.alias() + "(" + m.desc() + ")");
     }
 
     // ---------------- 识别逻辑 ----------------

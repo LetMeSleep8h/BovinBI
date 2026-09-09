@@ -9,18 +9,20 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.output.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * LangChain4j 客户端:
- * ChatLanguageModel 由 ModelProvider 按配置路由构建,业务代码只面向 LlmClient 抽象。
- * provider=mock 时不构建模型实例,调用即抛错,由管线降级到规则引擎。
+ * LangChain4j 客户端(项目唯一的 LLM 出口):
+ * 按 OpenAI 兼容协议懒构建模型实例(DeepSeek / 通义千问 / GLM / OpenAI 通用,换供应商只改配置)。
+ * provider=mock 时不会走到这里,保证零外部依赖启动;调用层面向 LlmClient 抽象,便于测试替身。
  */
 @Slf4j
 @Component
@@ -37,23 +39,22 @@ public class LangChain4jClient implements LlmClient {
         this.objectMapper = objectMapper;
     }
 
-    /** 懒构建:首次调用才创建模型实例,保证 provider=mock 时零外部依赖启动 */
+    /** 懒构建:首次调用才创建模型实例,provider=mock 时零外部依赖启动 */
     private ChatLanguageModel model() {
         if (chatModel == null) {
             synchronized (this) {
                 if (chatModel == null) {
-                    BovinProperties.Llm cfg = props.getLlm();
-                    chatModel = ModelProvider.getChatModel(ChatModelConfig.builder()
-                            .provider(ChatModelConfig.PROVIDER_OPEN_AI)
-                            .baseUrl(cfg.getBaseUrl())
-                            .apiKey(cfg.getApiKey())
-                            .modelName(cfg.getModel())
-                            .temperature(cfg.getTemperature())
-                            .timeOut(cfg.getTimeoutSeconds())
-                            .maxRetries(cfg.getMaxRetries())
-                            .logRequests(cfg.isLogRequests())
-                            .logResponses(cfg.isLogResponses())
-                            .build());
+                    BovinProperties.Llm c = props.getLlm();
+                    chatModel = OpenAiChatModel.builder()
+                            .baseUrl(c.getBaseUrl())
+                            .apiKey(c.getApiKey())
+                            .modelName(c.getModel())
+                            .temperature(c.getTemperature())
+                            .maxRetries(c.getMaxRetries())
+                            .timeout(Duration.ofSeconds(c.getTimeoutSeconds()))
+                            .logRequests(c.isLogRequests())
+                            .logResponses(c.isLogResponses())
+                            .build();
                 }
             }
         }
@@ -81,6 +82,7 @@ public class LangChain4jClient implements LlmClient {
     }
 
     /** 从模型回复中提取 JSON(容忍 markdown 代码块包裹) */
+    @Override
     public JsonNode extractJson(String raw) {
         try {
             return objectMapper.readTree(raw);

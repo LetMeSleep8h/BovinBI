@@ -1,6 +1,7 @@
 package com.eighthours.bovinbi.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.eighthours.bovinbi.common.BizException;
 import com.eighthours.bovinbi.dto.AnswerPayload;
 import com.eighthours.bovinbi.dto.MessageVO;
 import com.eighthours.bovinbi.dto.SessionVO;
@@ -145,7 +146,7 @@ public class ChatService {
     private ChatSession mustOwn(Long sessionId) {
         ChatSession s = sessionMapper.selectById(sessionId);
         if (s == null || !s.getUserId().equals(UserContext.uid())) {
-            throw new com.eighthours.bovinbi.common.BizException(404, "会话不存在");
+            throw new BizException(404, "会话不存在");
         }
         return s;
     }

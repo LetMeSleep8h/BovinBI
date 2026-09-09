@@ -80,11 +80,7 @@ public class QueryExecutor {
             return "[binary " + b.length + "B]";
         }
         if (v instanceof BigDecimal bd) {
-            double d = bd.doubleValue();
-            if (d == Math.floor(d) && !bd.scaleByPowerOfTen(0).toString().contains("E") && bd.scale() <= 2) {
-                return d;
-            }
-            return d;
+            return bd.doubleValue();
         }
         return v;
     }

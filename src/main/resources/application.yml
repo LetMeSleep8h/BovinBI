@@ -44,9 +44,10 @@ bovin:
     jwt-secret: bovinbi-dev-secret-key-please-change-in-prod-0123456789
     jwt-ttl-hours: 24
   llm:
-    # LangChain4j 接入: provider: mock=离线规则引擎(无需API Key) / openai=OpenAI 兼容协议
+    # LangChain4j 接入: provider: mock=离线规则引擎(无需API Key,默认) / openai=OpenAI 兼容协议
     # base-url 可选: DeepSeek https://api.deepseek.com / 通义千问 https://dashscope.aliyuncs.com/compatible-mode/v1 / GLM / OpenAI
-    provider: openai
+    # 接入真实大模型: export LLM_API_KEY=sk-xxx 后加 --spring.profiles.active=dev,详见 application-dev.yml
+    provider: mock
     base-url: https://api.deepseek.com
     api-key:
     model: deepseek-chat

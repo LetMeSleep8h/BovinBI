@@ -1,18 +1,18 @@
 # BovinBI · 对话式商业智能(ChatBI)
 
 > 面向业务人员的对话式商业智能(ChatBI)平台:
-> 用户用自然语言提问 → 系统自动完成 **时间解析 → 语义缓存 → Schema 召回 → SQL 生成(LLM+规则双引擎) → AST 级安全守护 → 只读执行 → 智能图表推荐** 的全链路。
+> 用户用自然语言提问 → 系统自动完成 **闲聊分流 → 时间解析 → 语义缓存 → Schema 召回 → SQL 生成(双引擎降级链) → AST 级安全守护 → 只读执行 → 智能图表推荐** 的六步链路。
 >
 > **业务域:智慧牧场·奶牛养殖**(6 牧场 · 1,200 头泌乳牛 · 36,984 条挤奶记录,合成数据集,业务规律可审计、可复现),
-> **LLM 编排层使用 LangChain4j**(ModelProvider/ModelFactory 工厂路由 + PromptTemplate 变量化提示词),
-> **零安装即可演示**(内置 H2,一条命令切 MySQL 生产形态),支持任意 OpenAI 兼容大模型(DeepSeek / 通义千问 / GLM / OpenAI),离线规则模式同样完整可用。
+> **LLM 接入基于 LangChain4j**(OpenAI 兼容协议,DeepSeek / 通义千问 / GLM / OpenAI 一行配置切换),
+> **零安装即可演示**(默认 H2 + 离线规则引擎,无需 API Key),离线模式同样完整可用。
 
 ![tech](https://img.shields.io/badge/Java-21-blue) ![tech](https://img.shields.io/badge/Spring%20Boot-3.5.x-brightgreen) ![tech](https://img.shields.io/badge/LangChain4j-0.36.2-orange) ![tech](https://img.shields.io/badge/Vue-3.5-409eff)
 
 ## 30 秒体验
 
 ```bash
-java -jar target/BovinBI-1.0.0.jar        # 或 mvn spring-boot:run
+java -jar target/BovinBI-1.0.0.jar        # 或 mvn spring-boot:run(默认离线模式)
 # 浏览器打开 http://localhost:8080   登录:admin / bovin123
 # 试试问: 近12个月每月产奶量趋势 / 产奶量Top5牧场 / 上个月各品种产奶量占比 / 上个月产奶量环比 / 西北地区牧场的平均乳脂率
 ```
@@ -20,55 +20,53 @@ java -jar target/BovinBI-1.0.0.jar        # 或 mvn spring-boot:run
 ## 核心架构
 
 ```
-用户问题 ──► ①时间解析(规则,半开区间) ──► ②语义缓存(归一化key) ──► ③Schema召回(同义词词典)
-                                                                        │
-前端图表 ◄── ⑥图表推荐+透视(折线/饼图/条形) ◄── ⑤SQL守护(JSqlParser AST) ◄── ④SQL生成(LLM+规则双引擎)
-                │                                                              │
+用户问题 ──► ⓪闲聊分流 ──► ①时间解析(规则,半开区间) ──► ②语义缓存(归一化key)
+                                                                   │ 未命中
+                              ③Schema召回(同义词词典+表白名单) ◄────┘
+                                                                   │
+前端图表 ◄── ⑥图表推荐+透视(折线/饼图/条形) ◄── ⑤SQL守护(JSqlParser AST) ◄── ④SQL生成(双引擎降级链)
+                │                                                            │
                 └── 审计落库(query_log) / 只读连接 + queryTimeout + 强制LIMIT ──┘
+
+④ 的降级链(LLM 模式):LLM生成 ─失败→ 规则引擎
+                       LLM生成 ─守护/执行失败→ LLM自修复一次 ─仍失败→ 规则引擎
 ```
 
-- **双引擎**:LLM 生成失败自动降级规则引擎(9 类问题形态),演示不依赖外部 API
-- **安全纵深**:单语句校验 / 表白名单 / 强制 LIMIT / 只读连接 / 8s 超时(8 个安全单测)
-- **质量评测**:123 条评测集一条命令回归,规则引擎结构准确率 100%(`eval-report.md`)
+- **双引擎降级链**:LLM 优先,任何一环失败(生成/校验/执行)最终都落到规则引擎(9 类问题形态),演示永不中断;`engine` 字段(LLM / LLM(修复) / RULE / RULE(降级) / CACHE)让降级透明可观测
+- **安全纵深**:AST 单语句校验 / 表白名单 / 强制 LIMIT / 只读连接 / 8s 超时(8 个安全单测)
+- **质量评测**:123 条评测集一条命令回归,规则引擎结构准确率 100%(`eval-report.md`),60 个单元/集成测试全绿
 - **语义层**:数据集/维度/指标/同义词/口径描述,业务黑话(奶量/头数/单产)即时生效
 
 ## LLM 接入设计
 
-- `llm/ModelProvider`:静态注册表 + 工厂路由,新增模型供应商零侵入接入
-- `llm/OpenAiModelFactory`:OpenAI 兼容协议工厂(DeepSeek / 通义千问 / GLM / OpenAI 通用)
-- `llm/ChatModelConfig`:模型接入参数 POJO(provider/baseUrl/apiKey/model/温度/重试/超时)
+- `llm/LlmClient`:LLM 抽象(chat + extractJson),测试用手写替身即可,不锁死框架
+- `llm/LangChain4jClient`:项目唯一 LLM 出口,懒构建 OpenAI 兼容模型实例(mock 模式零外部依赖启动)
 - `prompts/nl2sql-system.md`:`#Role/#Task/#Rules/#Exemplars` 四段系统提示词 + `#Schema/#SideInfo/#Question` 变量化用户模板(LangChain4j `PromptTemplate` 填充)
 - SideInfo 段注入今天日期与已解析时间区间,时间理解不依赖 LLM
-- 语义层:Dataset/DatasetField(维度/指标/同义词/口径)
+- 接入步骤:`export LLM_API_KEY=sk-xxx` + `--spring.profiles.active=dev`(见 `application-dev.yml`)
 
 ## 技术栈
 
 | 层 | 技术 |
 | --- | --- |
 | 后端 | Java 21 · Spring Boot 3.5 · MyBatis-Plus · JSqlParser · Caffeine · jjwt · springdoc |
-| LLM | **LangChain4j 0.36.2**(OpenAI 兼容协议,ModelProvider/ModelFactory 工厂路由),可切换 mock 规则引擎 |
+| LLM | **LangChain4j 0.36.2**(OpenAI 兼容协议),可切离线规则引擎 |
 | 前端 | Vue 3 · TypeScript · Vite · Element Plus · Pinia · Vue Router · ECharts · Axios |
 | 数据 | 智慧牧场·奶牛养殖合成数据集(星型模型);默认 H2,生产 MySQL 8 |
 
 ## 快速开始
 
-### 方式一:零安装演示(默认)
+### 方式一:零安装演示(默认,离线)
 ```bash
-mvn spring-boot:run          # 内置 H2 文件库,启动自动建表+装载数据集
+mvn spring-boot:run          # 内置 H2 文件库 + 离线规则引擎,启动自动建表+装载数据
 ```
 
 ### 方式二:接入真实大模型(LangChain4j)
-```yaml
-# application.yml
-bovin:
-  llm:
-    provider: openai          # mock → openai
-    base-url: https://api.deepseek.com   # 千问: https://dashscope.aliyuncs.com/compatible-mode/v1
-    api-key: ${LLM_API_KEY}
-    model: deepseek-chat
-    max-retries: 2            # LangChain4j 内置重试
+```bash
+export LLM_API_KEY=sk-xxx    # DeepSeek / 通义千问 / GLM 任一 OpenAI 兼容 Key
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
-LLM 失败/超时自动降级规则引擎(`fallback-to-rule`),演示永不中断。
+LLM 任何一环失败自动进入降级链(自修复 → 规则兜底),演示永不中断。
 
 ### 方式三:MySQL 生产形态
 ```bash
@@ -85,9 +83,9 @@ npm run build                                # 产物输出到后端 static,单 
 ## 质量与基准
 
 ```bash
-mvn test -Dtest=Nl2SqlEvalRunner -Dbovin.llm.provider=mock   # 123 条评测 → eval-report.md(规则引擎 100%)
-mvn test -Dbovin.llm.provider=mock                           # 全部 42 个单测(安全/时间/规则引擎/图表推荐/评测)
-python3 benchmark/bench_latency.py      # 延迟基准
+mvn test                            # 60 个单元/集成测试(管线降级链/安全/时间/规则引擎/图表/缓存/评测)
+mvn test -Dtest=Nl2SqlEvalRunner    # 123 条评测 → eval-report.md(规则引擎 100%)
+python3 benchmark/bench_latency.py  # 延迟基准(缓存冷热对比)
 ```
 
 ## 目录结构
@@ -95,11 +93,11 @@ python3 benchmark/bench_latency.py      # 延迟基准
 ```
 BovinBI/
 ├── src/main/java/com/eighthours/bovinbi/
-│   ├── service/        # 六步管线:TimeRangeParser/SchemaLinker/Rule+LlmSqlGenerator/
-│   │                   #           SqlGuard/QueryExecutor/ChartAdvisor/SemanticCache/Nl2SqlService
-│   ├── llm/            # LangChain4j 接入:ModelProvider/ModelFactory/
-│   │                   #           OpenAiModelFactory/LangChain4jClient
-│   ├── controller/ service/ entity/ mapper/ dto/ security/ config/ init/
+│   ├── service/        # 六步管线:Nl2SqlService(编排+降级链)/TimeRangeParser/SchemaLinker/
+│   │                   #   RuleSqlGenerator/LlmSqlGenerator/SqlGuard/QueryExecutor/ChartAdvisor/
+│   │                   #   SemanticCache/ChitChatHandler/ChatService…
+│   ├── llm/            # LangChain4j 接入:LlmClient(抽象) + LangChain4jClient(唯一出口)
+│   ├── controller/ security/ config/ entity/ mapper/ dto/ init/ util/ common/
 ├── src/main/resources/
 │   ├── prompts/nl2sql-system.md   # NL2SQL 提示词(#Role/#Task/#Rules/#Exemplars)
 │   └── dataset/dwh/*.csv          # 牧场星型模型数据(DataLoader 启动自动装载)
@@ -108,20 +106,18 @@ BovinBI/
 ├── eval/               # 评测集生成器;评测器在 src/test
 ├── sql/ docker/        # MySQL 建表脚本 + docker-compose
 ├── benchmark/          # 延迟基准脚本
-├── archive/            # 旧版遗留(含 v1 的 UCI 电商数据集)
-└── docs/               # 面试材料:数据流程/简历量化/重难点/面试宝典/学习路径/演示脚本
+└── docs/               # 学习与面试文档(见下)
 ```
 
-## 文档导航(面试必读)
+## 文档导航
 
 | 文档 | 内容 |
 | --- | --- |
-| [docs/01-数据流程设计.md](docs/01-数据流程设计.md) | 六步管线详解 + 设计取舍 + 扩展路线 |
-| [docs/02-简历量化结果.md](docs/02-简历量化结果.md) | 可直接写进简历的量化条目(每个数字给出处和复现命令) |
-| [docs/03-项目重难点.md](docs/03-项目重难点.md) | 8 个真实难点:问题→定位→方案对比→量化结果 |
-| [docs/04-面试宝典.md](docs/04-面试宝典.md) | 30s/1min/3min 话术、高频 QA、系统设计变体、压力应对 |
-| [docs/05-学习路径.md](docs/05-学习路径.md) | 最快上手路径:跑通→读主线6类→动手改5处→背材料 |
-| [docs/06-演示脚本.md](docs/06-演示脚本.md) | 10 步现场演示脚本(含叙事话术和应急预案) |
+| [docs/01-架构与数据链路.md](docs/01-架构与数据链路.md) | 六步管线 + 降级链详解、每步设计动机、精简删减记录、量化指标 |
+| [docs/02-源码导读.md](docs/02-源码导读.md) | 按请求生命周期的 10 步读代码路线,逐文件职责与自问 |
+| [docs/03-面试宝典.md](docs/03-面试宝典.md) | 简历量化条目、三档话术、5 个重难点故事、高频 QA |
+| [docs/04-学习路径.md](docs/04-学习路径.md) | 最快上手:跑通 → 读主线 8 类 → 动手改 5 处 → 背材料 |
+| [docs/05-演示脚本.md](docs/05-演示脚本.md) | 10 步现场演示脚本(叙事话术 + 应急预案) |
 | [dataset/README.md](dataset/README.md) | 牧场数据集:生成规则、内置业务规律、数据字典 |
 
 ## 数据说明
@@ -129,4 +125,3 @@ BovinBI/
 业务数据为 **「智慧牧场·奶牛养殖」合成数据集**(`dataset/build_bovine_dwh.py`,固定随机种子可复现):
 6 个牧场 · 1,200 头泌乳牛 · 36,984 行挤奶记录(2025-09 ~ 2026-08),内置 5 条真实牧业量化规律
 (品种差异 / 胎次泌乳曲线 / 泌乳阶段 / 季节热应激 / 牧场规模效应),分析问题都能"问出答案"。
-旧版 UCI 电商数据集归档于 `archive/retail-uci-dataset/`。

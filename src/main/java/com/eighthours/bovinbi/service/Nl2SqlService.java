@@ -1,5 +1,6 @@
 package com.eighthours.bovinbi.service;
 
+import com.eighthours.bovinbi.agent.AgentOrchestrator;
 import com.eighthours.bovinbi.common.BizException;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.dto.AnswerPayload;
@@ -7,13 +8,20 @@ import com.eighthours.bovinbi.dto.ChartSpec;
 import com.eighthours.bovinbi.dto.ExecResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
  * NL2SQL 查询管线(编排层),六步主链路:
  * 0.闲聊分流 → 1.时间解析 → 2.语义缓存 → 3.Schema 召回 → 4~5.SQL 生成+守护+执行 → 6.图表推荐
  *
- * 引擎降级链(第 4~5 步内部,是全项目唯一的双引擎交汇点):
+ * 引擎分流(bovin.chat.engine):
+ * - pipeline(默认):3~5 步由本类固定代码编排 —— LLM 单轮生成 + 自修复一次 + 规则兜底;
+ * - agent:3~5 步交给模型自主编排(tool-calling 循环),外壳(分流/缓存/图表)不变。
+ * 两种引擎共存一是为了 A/B 评测(同一评测集对比准确率/成本),二是 Agent 链路失败时
+ * 可一键切回管线 —— 新架构上线不破釜沉舟。
+ *
+ * 引擎降级链(pipeline 模式第 4~5 步内部,是全项目唯一的双引擎交汇点):
  *   LLM 生成 → [失败]→ 规则引擎
  *   LLM 生成 → SQL 守护/执行 [失败]→ LLM 自修复一次 → [仍失败]→ 规则引擎
  * 无论链路上哪一环出错,对外只有两种结果:可用回答,或"无法理解"的优雅降级。
@@ -33,8 +41,14 @@ public class Nl2SqlService {
     private final QueryExecutor queryExecutor;
     private final ChartAdvisor chartAdvisor;
     private final BovinProperties props;
+    private final ObjectProvider<AgentOrchestrator> agentOrchestrator;
 
     public AnswerPayload answer(Long datasetId, String question) {
+        return answer(datasetId, question, null);
+    }
+
+    /** @param sessionId 会话 id:agent 模式下作为记忆锚点(多轮追问);pipeline 模式不使用 */
+    public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
         long t0 = System.currentTimeMillis();
 
         // 步骤 0:意图分流 —— 闲聊/能力询问不进管线
@@ -45,11 +59,27 @@ public class Nl2SqlService {
         // 步骤 1:时间解析(确定性规则,半开区间;null = 无时间语义)
         TimeRange timeRange = timeRangeParser.parse(question);
 
-        // 步骤 2:语义缓存 —— 归一化问题命中则跳过生成与执行
+        // 步骤 2:语义缓存 —— 归一化问题命中则跳过生成与执行(对 agent 模式同样生效,命中即省全部 token)
         String cacheKey = semanticCache.key(datasetId, question, timeRange);
         AnswerPayload cached = semanticCache.get(cacheKey);
         if (cached != null) {
             return cacheHit(cached, t0);
+        }
+
+        // 引擎分流:agent 模式把 3~5 步(召回/生成/守护/执行/修复)交给模型编排
+        if ("agent".equalsIgnoreCase(props.getChat().getEngine())) {
+            AgentOrchestrator orch = agentOrchestrator.getIfAvailable();
+            if (orch == null) {
+                log.warn("engine=agent 但 AgentOrchestrator 不可用,回退固定管线");
+            } else {
+                AnswerPayload p = orch.answer(datasetId, question, sessionId);
+                if (!p.isFallback()) {
+                    // 步骤 6(图表推荐)与缓存写入对外壳保持一致:两种引擎产出同构
+                    p.setChart(chartAdvisor.advise(question, p.getColumns(), p.getRows()));
+                    semanticCache.put(cacheKey, p);
+                }
+                return p;
+            }
         }
 
         // 步骤 3:Schema 召回 —— 紧凑 Schema 文本 + 表白名单(一次查询带出)

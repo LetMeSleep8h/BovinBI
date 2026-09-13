@@ -33,10 +33,20 @@ springdoc:
 
 bovin:
   chat:
+    # 查询引擎: pipeline=固定管线(默认,行为与旧版一致) | agent=工具调用循环(需 provider=openai,详见 docs/06)
+    engine: pipeline
     # LLM 生成失败/超时时是否回退到内置规则引擎(保证演示不中断)
     fallback-to-rule: true
     max-rows: 1000
     query-timeout-seconds: 8
+    # Agent 模式运行预算:自主性边界在工具层强制(总调用/SQL执行/Schema/维度值 各自限次)
+    agent:
+      max-tool-calls: 12
+      max-sql-executions: 3
+      max-schema-calls: 2
+      max-value-calls: 4
+      preview-rows: 8
+      memory-messages: 20
   cache:
     ttl-seconds: 600
     max-size: 512

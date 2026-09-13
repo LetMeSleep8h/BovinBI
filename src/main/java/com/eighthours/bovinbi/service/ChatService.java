@@ -98,7 +98,7 @@ public class ChatService {
 
         AnswerPayload payload;
         try {
-            payload = nl2SqlService.answer(session.getDatasetId(), question);
+            payload = nl2SqlService.answer(session.getDatasetId(), question, sessionId);
             engine = payload.getEngine();
             finalSql = payload.getSql();
         } catch (Exception e) {

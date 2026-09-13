@@ -1,5 +1,6 @@
 package com.eighthours.bovinbi.service;
 
+import com.eighthours.bovinbi.agent.AgentOrchestrator;
 import com.eighthours.bovinbi.common.BizException;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.dto.AnswerPayload;
@@ -7,6 +8,7 @@ import com.eighthours.bovinbi.dto.ColInfo;
 import com.eighthours.bovinbi.dto.ExecResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -34,6 +36,8 @@ class Nl2SqlServiceTest {
     private SchemaLinker schemaLinker;
     private LlmSqlGenerator llmSqlGenerator;
     private QueryExecutor queryExecutor;
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<AgentOrchestrator> agentProvider = mock(ObjectProvider.class);
     private BovinProperties props;
     private Nl2SqlService service;
 
@@ -57,7 +61,8 @@ class Nl2SqlServiceTest {
                 new SqlGuard(props),
                 queryExecutor,
                 new ChartAdvisor(),
-                props);
+                props,
+                agentProvider);
     }
 
     private static ExecResult oneRow() {
@@ -166,5 +171,17 @@ class Nl2SqlServiceTest {
         assertTrue(p.isFallback());
         assertNotNull(p.getFallbackHint());
         assertNull(p.getSql());
+    }
+
+    @Test
+    void agentEngineWithoutOrchestratorFallsBackToPipeline() {
+        // engine=agent 但 orchestrator 不可用(如装配失败):外壳记 warn 后回退固定管线,不中断服务
+        props.getChat().setEngine("agent");
+        when(agentProvider.getIfAvailable()).thenReturn(null);
+
+        AnswerPayload p = service.answer(DS, "今年总产奶量");
+        assertEquals("RULE", p.getEngine());
+        assertFalse(p.isFallback());
+        assertTrue(p.getSql().toLowerCase().contains("sum(m.milk_yield)"));
     }
 }

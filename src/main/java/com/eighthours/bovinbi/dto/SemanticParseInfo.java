@@ -13,9 +13,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SemanticParseInfo {
     private Integer parseId;       // 候选序号,当前固定 1
-    private String engine;         // RULE_SQL / LLM_SQL / LLM_SQL(修复)
+    /** 与 AnswerPayload.engine / query_log.engine 同口径:RULE / LLM / LLM(修复) / AGENT / CACHE / CHIT_CHAT */
+    private String engine;
     private String question;
-    private String sql;            // 守护后的最终 SQL,parse 阶段不执行
+    private String sql;            // 守护后的最终 SQL,parse 阶段不执行;闲聊时为 null
     private String explanation;
     private TimeRange timeRange;
     private Long datasetId;

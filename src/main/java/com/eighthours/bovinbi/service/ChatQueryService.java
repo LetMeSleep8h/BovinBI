@@ -1,7 +1,6 @@
 package com.eighthours.bovinbi.service;
 
 import com.eighthours.bovinbi.dto.AnswerPayload;
-
 import com.eighthours.bovinbi.request.ChatExecuteReq;
 import com.eighthours.bovinbi.request.ChatParseReq;
 import com.eighthours.bovinbi.response.ChatParseResp;

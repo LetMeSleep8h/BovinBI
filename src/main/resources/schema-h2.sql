@@ -64,3 +64,21 @@ CREATE TABLE IF NOT EXISTS query_log (
     error_msg   VARCHAR(1024),
     created_at  DATETIME    DEFAULT CURRENT_TIMESTAMP
 );
+
+-- LLM 网关调用量化(每请求一行:成功/失败都落,供成本核算与供应商质量分析)
+CREATE TABLE IF NOT EXISTS gateway_usage (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ts                DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    provider          VARCHAR(64),
+    model             VARCHAR(64),
+    caller            VARCHAR(128),
+    prompt_tokens     INT,
+    completion_tokens INT,
+    cost_ms           INT,
+    success           TINYINT      DEFAULT 1,
+    error_msg         VARCHAR(512),
+    created_at        DATETIME     DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 引擎标签扩容:多 Agent 降级链的 engine 标记(如 MULTI_AGENT(降级RULE))超过 16 字符
+ALTER TABLE query_log ALTER COLUMN engine VARCHAR(32);

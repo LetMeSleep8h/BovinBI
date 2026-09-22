@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS query_log (
     dataset_id  BIGINT,
     question    VARCHAR(512),
     final_sql   TEXT COMMENT '守护后实际执行的SQL',
-    engine      VARCHAR(16) COMMENT 'RULE/LLM/CACHE/FAILED',
+    engine      VARCHAR(32) COMMENT 'RULE/LLM/CACHE/MULTI_AGENT/FAILED',
     status      VARCHAR(16) COMMENT 'SUCCESS/FAILED/REFUSED',
     row_count   INT,
     cost_ms     INT,
@@ -102,3 +102,18 @@ CREATE TABLE IF NOT EXISTS dwh_fact_milk (
 CREATE INDEX idx_fact_date ON dwh_fact_milk (record_date);
 CREATE INDEX idx_fact_cattle ON dwh_fact_milk (cattle_id);
 CREATE INDEX idx_fact_farm ON dwh_fact_milk (farm_id);
+
+-- LLM 网关调用量化(每请求一行:成功/失败都落,供成本核算与供应商质量分析)
+CREATE TABLE IF NOT EXISTS gateway_usage (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ts                DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    provider          VARCHAR(64),
+    model             VARCHAR(64),
+    caller            VARCHAR(128),
+    prompt_tokens     INT,
+    completion_tokens INT,
+    cost_ms           INT,
+    success           TINYINT      DEFAULT 1,
+    error_msg         VARCHAR(512),
+    created_at        DATETIME     DEFAULT CURRENT_TIMESTAMP
+) COMMENT 'LLM 网关调用量化';

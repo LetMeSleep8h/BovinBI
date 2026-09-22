@@ -51,6 +51,10 @@ public class ChatService {
     }
 
     public Long createSession(Long datasetId) {
+        // 数据集前置校验:快速失败,避免脏 datasetId 存入会话、拖到 parse/ask 阶段才报难懂的错
+        if (datasetId == null || datasetMapper.selectById(datasetId) == null) {
+            throw new BizException(400, "数据集不存在,请从数据集列表中选择后创建会话");
+        }
         ChatSession s = new ChatSession();
         s.setUserId(UserContext.uid());
         s.setDatasetId(datasetId);

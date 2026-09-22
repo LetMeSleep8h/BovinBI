@@ -556,8 +556,11 @@ public class ChatQueryServiceImpl implements ChatQueryService {
                         BovinProperties.Llm lc = props.getLlm();
                         ChatLanguageModel agentModel = OpenAiChatModel.builder()
                                 .baseUrl(lc.getBaseUrl()).apiKey(lc.getApiKey()).modelName(lc.getModel())
-                                .temperature(lc.getTemperature()).maxRetries(lc.getMaxRetries())
-                                .timeout(Duration.ofSeconds(lc.getTimeoutSeconds()))
+                                .temperature(lc.getTemperature())
+                                // Agent 循环专属超时/重试(短超时、零重试):循环自带"报错回喂重试"语义,
+                                // HTTP 层重试会把耗时叠加到多轮循环上,慢端点下拖垮整次问答
+                                .maxRetries(acfg.getLlmMaxRetries())
+                                .timeout(Duration.ofSeconds(acfg.getLlmTimeoutSeconds()))
                                 .logRequests(lc.isLogRequests()).logResponses(lc.isLogResponses())
                                 .build();
                         InlineAgent agent = AiServices.builder(InlineAgent.class)

@@ -33,28 +33,32 @@ class Nl2SqlServiceTest {
 
     private static final Long DS = 1L;
 
-    private SchemaLinker schemaLinker;
+    private SchemaRetriever schemaRetriever;
     private LlmSqlGenerator llmSqlGenerator;
     private QueryExecutor queryExecutor;
     @SuppressWarnings("unchecked")
     private final ObjectProvider<AgentOrchestrator> agentProvider = mock(ObjectProvider.class);
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<com.eighthours.bovinbi.service.MultiAgentService> multiAgentProvider = mock(ObjectProvider.class);
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<com.eighthours.bovinbi.service.rag.EmbeddingClient> embedderProvider = mock(ObjectProvider.class);
     private BovinProperties props;
     private Nl2SqlService service;
 
     @BeforeEach
     void setUp() {
-        schemaLinker = mock(SchemaLinker.class);
+        schemaRetriever = mock(SchemaRetriever.class);
         llmSqlGenerator = mock(LlmSqlGenerator.class);
         queryExecutor = mock(QueryExecutor.class);
         props = new BovinProperties();
-        when(schemaLinker.link(anyLong(), anyString())).thenReturn(new SchemaLinker.LinkedSchema(
+        when(schemaRetriever.retrieve(anyLong(), anyString())).thenReturn(new SchemaRetriever.LinkedSchema(
                 "【数据集】牧场养殖分析",
                 Set.of("dwh_fact_milk", "dwh_dim_cattle", "dwh_dim_farm")));
         when(queryExecutor.execute(anyString())).thenReturn(oneRow());
         service = new Nl2SqlService(
                 new TimeRangeParser(LocalDate.of(2026, 9, 5)),
                 new ChitChatHandler(),
-                schemaLinker,
+                schemaRetriever,
                 new SemanticCache(props),
                 new RuleSqlGenerator(),
                 llmSqlGenerator,
@@ -62,7 +66,9 @@ class Nl2SqlServiceTest {
                 queryExecutor,
                 new ChartAdvisor(),
                 props,
-                agentProvider);
+                agentProvider,
+                multiAgentProvider,
+                embedderProvider);
     }
 
     private static ExecResult oneRow() {
@@ -80,7 +86,7 @@ class Nl2SqlServiceTest {
         AnswerPayload p = service.answer(DS, "你好");
         assertFalse(p.isFallback());
         assertEquals("RULE", p.getEngine());
-        verifyNoInteractions(schemaLinker, queryExecutor, llmSqlGenerator);
+        verifyNoInteractions(schemaRetriever, queryExecutor, llmSqlGenerator);
     }
 
     @Test

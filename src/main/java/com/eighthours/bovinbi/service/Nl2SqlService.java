@@ -6,6 +6,7 @@ import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.dto.AnswerPayload;
 import com.eighthours.bovinbi.dto.ChartSpec;
 import com.eighthours.bovinbi.dto.ExecResult;
+import com.eighthours.bovinbi.service.rag.EmbeddingClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -17,8 +18,9 @@ import org.springframework.stereotype.Service;
  *
  * 引擎分流(bovin.chat.engine):
  * - pipeline(默认):3~5 步由本类固定代码编排 —— LLM 单轮生成 + 自修复一次 + 规则兜底;
- * - agent:3~5 步交给模型自主编排(tool-calling 循环),外壳(分流/缓存/图表)不变。
- * 两种引擎共存一是为了 A/B 评测(同一评测集对比准确率/成本),二是 Agent 链路失败时
+ * - agent:3~5 步交给模型自主编排(tool-calling 循环),外壳(分流/缓存/图表)不变;
+ * - multi-agent:SQL Agent → Reviewer → Repair Agent 流水线,失败降级规则引擎。
+ * 三种引擎共存一是为了 A/B 评测(同一评测集对比准确率/成本),二是新链路失败时
  * 可一键切回管线 —— 新架构上线不破釜沉舟。
  *
  * 引擎降级链(pipeline 模式第 4~5 步内部,是全项目唯一的双引擎交汇点):
@@ -33,7 +35,7 @@ public class Nl2SqlService {
 
     private final TimeRangeParser timeRangeParser;
     private final ChitChatHandler chitChatHandler;
-    private final SchemaLinker schemaLinker;
+    private final SchemaRetriever schemaRetriever;
     private final SemanticCache semanticCache;
     private final RuleSqlGenerator ruleSqlGenerator;
     private final LlmSqlGenerator llmSqlGenerator;
@@ -42,6 +44,8 @@ public class Nl2SqlService {
     private final ChartAdvisor chartAdvisor;
     private final BovinProperties props;
     private final ObjectProvider<AgentOrchestrator> agentOrchestrator;
+    private final ObjectProvider<MultiAgentService> multiAgentService;
+    private final ObjectProvider<EmbeddingClient> embeddingClient;
 
     public AnswerPayload answer(Long datasetId, String question) {
         return answer(datasetId, question, null);
@@ -62,11 +66,49 @@ public class Nl2SqlService {
         // 步骤 2:语义缓存 —— 归一化问题命中则跳过生成与执行(对 agent 模式同样生效,命中即省全部 token)
         String cacheKey = semanticCache.key(datasetId, question, timeRange);
         AnswerPayload cached = semanticCache.get(cacheKey);
+        String cacheEngine = "CACHE";
+        if (cached == null && props.getCache().isSemanticEnabled()) {
+            // 语义二次命中(bovin.cache.semantic-enabled=true):精确 key 未命中 → 向量相似度回退
+            EmbeddingClient embedder = embeddingClient.getIfAvailable();
+            if (embedder != null) {
+                cached = semanticCache.getSemantic(datasetId, question, timeRange, embedder,
+                        props.getCache().getSemanticThreshold());
+                if (cached != null) {
+                    cacheEngine = "CACHE(SEM)";
+                    log.info("语义缓存二次命中(相似度): {}", cached.getSql());
+                }
+            }
+        }
         if (cached != null) {
-            return cacheHit(cached, t0);
+            return cacheHit(cached, t0, cacheEngine);
         }
 
-        // 引擎分流:agent 模式把 3~5 步(召回/生成/守护/执行/修复)交给模型编排
+        // 引擎分流 1:multi-agent(SQL Agent → Reviewer → Repair Agent 流水线,一个 Agent 只干一件事)
+        if ("multi-agent".equalsIgnoreCase(props.getChat().getEngine())) {
+            MultiAgentService mas = multiAgentService.getIfAvailable();
+            if (mas != null) {
+                try {
+                    AnswerPayload p = mas.answer(datasetId, question, sessionId);
+                    // 步骤 6(图表推荐)与缓存写入对外壳保持一致:各引擎产出同构
+                    p.setChart(chartAdvisor.advise(question, p.getColumns(), p.getRows()));
+                    semanticCache.put(cacheKey, p);
+                    return p;
+                } catch (Exception e) {
+                    log.warn("multi-agent 链路失败,降级规则引擎: {}", e.getMessage());
+                }
+                // 降级:规则引擎接管,保持"可用回答或优雅降级"的对外契约
+                SchemaRetriever.LinkedSchema fbSchema = schemaRetriever.retrieve(datasetId, question);
+                SqlGenContext fbCtx = new SqlGenContext(question, timeRange, fbSchema.schemaText(), fbSchema.whitelist());
+                Answer fb = byRule(fbCtx, "MULTI_AGENT(降级RULE)");
+                if (fb.executed() == null) {
+                    return fallbackPayload(t0, fb.engine());
+                }
+                return assembleSuccess(fb, t0, cacheKey);
+            }
+            log.warn("engine=multi-agent 但 MultiAgentService 不可用,回退固定管线");
+        }
+
+        // 引擎分流 2:agent 模式把 3~5 步(召回/生成/守护/执行/修复)交给模型编排
         if ("agent".equalsIgnoreCase(props.getChat().getEngine())) {
             AgentOrchestrator orch = agentOrchestrator.getIfAvailable();
             if (orch == null) {
@@ -82,8 +124,8 @@ public class Nl2SqlService {
             }
         }
 
-        // 步骤 3:Schema 召回 —— 紧凑 Schema 文本 + 表白名单(一次查询带出)
-        SchemaLinker.LinkedSchema schema = schemaLinker.link(datasetId, question);
+        // 步骤 3:Schema 召回 —— 紧凑 Schema 文本 + 表白名单(一次查询带出;bovin.rag.enabled=true 时为混合召回)
+        SchemaRetriever.LinkedSchema schema = schemaRetriever.retrieve(datasetId, question);
         SqlGenContext ctx = new SqlGenContext(question, timeRange, schema.schemaText(), schema.whitelist());
 
         // 步骤 4~5:生成 + 守护 + 执行(双引擎降级链;executed 为 null = 无法理解)
@@ -91,10 +133,13 @@ public class Nl2SqlService {
         if (answer.executed() == null) {
             return fallbackPayload(t0, answer.engine());
         }
+        return assembleSuccess(answer, t0, cacheKey);
+    }
 
-        // 步骤 6:图表推荐 + 组装载荷,成功结果写入缓存
+    /** 步骤 6 的公共组装:图表推荐 + 载荷 + 成功结果写缓存(pipeline 与 multi-agent 降级路径共用) */
+    private AnswerPayload assembleSuccess(Answer answer, long t0, String cacheKey) {
         ExecResult result = answer.executed().result();
-        ChartSpec chart = chartAdvisor.advise(question, result.columns(), result.rows());
+        ChartSpec chart = chartAdvisor.advise(answer.executed().sql(), result.columns(), result.rows());
         AnswerPayload payload = new AnswerPayload();
         payload.setSql(answer.executed().sql());
         payload.setExplanation(answer.explanation());
@@ -166,8 +211,8 @@ public class Nl2SqlService {
         return new Executed(guarded, queryExecutor.execute(guarded));
     }
 
-    /** 缓存命中:显式拷贝字段,避免调用方改动污染缓存对象 */
-    private AnswerPayload cacheHit(AnswerPayload c, long t0) {
+    /** 缓存命中:显式拷贝字段,避免调用方改动污染缓存对象;engineLabel 区分精确命中与语义命中 */
+    private AnswerPayload cacheHit(AnswerPayload c, long t0, String engineLabel) {
         AnswerPayload hit = new AnswerPayload();
         hit.setSql(c.getSql());
         hit.setExplanation(c.getExplanation());
@@ -176,7 +221,7 @@ public class Nl2SqlService {
         hit.setRowCount(c.getRowCount());
         hit.setChart(c.getChart());
         hit.setCacheHit(true);
-        hit.setEngine("CACHE");
+        hit.setEngine(engineLabel);
         hit.setTookMs(System.currentTimeMillis() - t0);
         log.info("语义缓存命中: {}", c.getSql());
         return hit;

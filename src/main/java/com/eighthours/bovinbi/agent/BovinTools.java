@@ -2,7 +2,7 @@ package com.eighthours.bovinbi.agent;
 
 import com.eighthours.bovinbi.dto.ExecResult;
 import com.eighthours.bovinbi.service.QueryExecutor;
-import com.eighthours.bovinbi.service.SchemaLinker;
+import com.eighthours.bovinbi.service.SchemaRetriever;
 import com.eighthours.bovinbi.service.SqlGuard;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 
 /**
  * Agent 工具集(模型可调用的全部能力,安全边界全部内建在工具里):
- * 1) getSchema:Schema 召回(复用管线的 SchemaLinker),并把表白名单登记进运行上下文;
+ * 1) getSchema:Schema 召回(复用管线的 SchemaRetriever 接口),并把表白名单登记进运行上下文;
  * 2) getColumnValues:维度值字典查询(防模型编造维度过滤值);
  * 3) executeSql:唯一执行入口,内置 AST 守护 + 表白名单 + 强制 LIMIT + 只读超时。
  *
@@ -32,7 +32,7 @@ public class BovinTools {
     /** 维度值查询的表/列名只接受简单标识符,从源头杜绝标识符注入 */
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
 
-    private final SchemaLinker schemaLinker;
+    private final SchemaRetriever schemaRetriever;
     private final SqlGuard sqlGuard;
     private final QueryExecutor queryExecutor;
 
@@ -46,7 +46,7 @@ public class BovinTools {
         long t0 = System.currentTimeMillis();
         String args = "keywords=" + brief(keywords);
         try {
-            SchemaLinker.LinkedSchema linked = schemaLinker.link(ctx.datasetId(),
+            SchemaRetriever.LinkedSchema linked = schemaRetriever.retrieve(ctx.datasetId(),
                     keywords == null || keywords.isBlank() ? ctx.question() : keywords);
             ctx.whitelist(linked.whitelist());
             ctx.record(new AgentTrace.ToolCall(ctx.nextSeq(), "getSchema", args, true,

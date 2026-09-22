@@ -7,7 +7,7 @@ import com.eighthours.bovinbi.dto.ExecResult;
 import com.eighthours.bovinbi.llm.LlmClient;
 import com.eighthours.bovinbi.service.QueryExecutor;
 import com.eighthours.bovinbi.service.RuleSqlGenerator;
-import com.eighthours.bovinbi.service.SchemaLinker;
+import com.eighthours.bovinbi.service.SchemaRetriever;
 import com.eighthours.bovinbi.service.SqlGenContext;
 import com.eighthours.bovinbi.service.SqlGuard;
 import com.eighthours.bovinbi.service.SqlResult;
@@ -39,7 +39,7 @@ public class AgentOrchestrator {
 
     private final ObjectProvider<BovinAgent> agentProvider;
     private final TimeRangeParser timeRangeParser;
-    private final SchemaLinker schemaLinker;
+    private final SchemaRetriever schemaRetriever;
     private final RuleSqlGenerator ruleSqlGenerator;
     private final SqlGuard sqlGuard;
     private final QueryExecutor queryExecutor;
@@ -105,7 +105,7 @@ public class AgentOrchestrator {
         } else {
             // 模型改写了已执行 SQL 或幻觉:重新走完整守护+执行,失败则整体降级
             Set<String> whitelist = ctx.whitelist().isEmpty()
-                    ? schemaLinker.link(ctx.datasetId(), ctx.question()).whitelist()
+                    ? schemaRetriever.retrieve(ctx.datasetId(), ctx.question()).whitelist()
                     : ctx.whitelist();
             guardedSql = sqlGuard.validate(finalSql, whitelist);
             result = queryExecutor.execute(guardedSql);
@@ -134,7 +134,7 @@ public class AgentOrchestrator {
         p.setTookMs(System.currentTimeMillis() - t0);
         try {
             TimeRange tr = timeRangeParser.parse(ctx.question());
-            SchemaLinker.LinkedSchema linked = schemaLinker.link(ctx.datasetId(), ctx.question());
+            SchemaRetriever.LinkedSchema linked = schemaRetriever.retrieve(ctx.datasetId(), ctx.question());
             SqlResult r = ruleSqlGenerator.generate(new SqlGenContext(ctx.question(), tr, linked.schemaText(), linked.whitelist()));
             if (r != null && r.sql() != null && !r.sql().isBlank()) {
                 String guarded = sqlGuard.validate(r.sql(), linked.whitelist());

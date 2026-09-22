@@ -35,13 +35,16 @@ public class AgentConfig {
     @ConditionalOnProperty(name = "bovin.llm.provider", havingValue = "openai")
     public BovinAgent bovinAgent(BovinProperties props, BovinTools bovinTools) {
         BovinProperties.Llm c = props.getLlm();
+        BovinProperties.Agent ac = props.getChat().getAgent();
         ChatLanguageModel model = OpenAiChatModel.builder()
                 .baseUrl(c.getBaseUrl())
                 .apiKey(c.getApiKey())
                 .modelName(c.getModel())
                 .temperature(c.getTemperature())
-                .maxRetries(c.getMaxRetries())
-                .timeout(Duration.ofSeconds(c.getTimeoutSeconds()))
+                // Agent 循环专属超时/重试:单次等待更短且不重试 —— 工具循环自带"报错回喂重试"语义,
+                // HTTP 层重试会把(超时×重试)叠加到多轮循环上,慢端点下整次问答远超前端超时
+                .maxRetries(ac.getLlmMaxRetries())
+                .timeout(Duration.ofSeconds(ac.getLlmTimeoutSeconds()))
                 .logRequests(c.isLogRequests())
                 .logResponses(c.isLogResponses())
                 .build();

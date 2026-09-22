@@ -34,7 +34,7 @@ springdoc:
 bovin:
   chat:
     # 查询引擎: pipeline=固定管线(默认,行为与旧版一致) | agent=工具调用循环(需 provider=openai,详见 docs/06)
-    engine: pipeline
+    engine: agent
     # LLM 生成失败/超时时是否回退到内置规则引擎(保证演示不中断)
     fallback-to-rule: true
     max-rows: 1000
@@ -47,9 +47,45 @@ bovin:
       max-value-calls: 4
       preview-rows: 8
       memory-messages: 20
+      # Agent 循环内单次 LLM 调用:短超时 + 零 HTTP 重试(工具循环自带"报错回喂重试"语义;
+      # 若沿用 llm.timeout-seconds=40s×2次重试,慢端点下多轮循环可拖到 80s+ 才降级,前端早已超时)
+      llm-timeout-seconds: 30
+      llm-max-retries: 0
+    # multi-agent 引擎(engine=multi-agent 时生效):SQL Agent → Reviewer → Repair Agent
+    multi-agent:
+      max-repairs: 2
+      llm-review: true
   cache:
     ttl-seconds: 600
     max-size: 512
+    # 语义缓存二次命中(向量相似度回退):默认关闭;开启后精确 key 未命中时按余弦相似度召回
+    semantic-enabled: false
+    semantic-threshold: 0.92
+  rag:
+    # Schema 混合召回(词面打分 + 向量重排 + topK 截断):开启后接管管线第 3 步;
+    # 字段数<=top-k 时行为与词面版一致(演示数据集 29 字段 < 32,零变化)
+    enabled: false
+    top-k: 32
+    embedding:
+      provider: hash   # hash=进程内零依赖(演示/测试) / openai=OpenAI 兼容 /embeddings(生产)
+      base-url: ""
+      api-key: ""
+      model: text-embedding-3-small
+  gateway:
+    # 轻量 LLM 网关:开启后暴露 POST /gateway/v1/chat/completions(OpenAI 兼容),
+    # 业务侧把 bovin.llm.base-url 指向 http://localhost:8080/gateway/v1 即接入,代码零改动
+    enabled: false
+    cache-ttl-seconds: 300
+    timeout-seconds: 60
+    breaker-threshold: 3
+    breaker-open-seconds: 60
+    api-keys: {}       # 调用方 key -> RPM;留空=不鉴权不限流(演示)
+    providers:
+      - name: deepseek
+        base-url: https://api.deepseek.com
+        api-key: ${LLM_API_KEY:}
+        model: deepseek-chat
+        priority: 1
   security:
     jwt-secret: bovinbi-dev-secret-key-please-change-in-prod-0123456789
     jwt-ttl-hours: 24

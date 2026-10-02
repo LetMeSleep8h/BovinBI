@@ -93,3 +93,10 @@ export const listQueryLogs = (page: number, size: number) =>
   http.get<never, any>('/history/queries', { params: { page, size } })
 
 export const historyStats = () => http.get<never, any>('/history/stats')
+
+/** 每用户每日 token 用量(all=true 仅 ADMIN 生效:全员视角) */
+export const tokenUsage = (days: number, all = false) =>
+  http.get<never, any[]>('/usage/tokens', { params: { days, all } })
+
+export const tokenUsageToday = (all = false) =>
+  http.get<never, any>('/usage/tokens/today', { params: { all } })

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     password    VARCHAR(128) NOT NULL COMMENT 'BCrypt',
     nickname    VARCHAR(64)  COMMENT '显示名',
     role        VARCHAR(32)  DEFAULT 'ANALYST' COMMENT 'ADMIN/ANALYST',
+    approval_mode VARCHAR(16) DEFAULT 'AUTO' COMMENT 'AI执行权限:AUTO完全允许/STEP逐步确认',
     created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP
 ) COMMENT '用户表';
 
@@ -159,3 +160,13 @@ CREATE TABLE IF NOT EXISTS gateway_usage (
     error_msg         VARCHAR(512),
     created_at        DATETIME     DEFAULT CURRENT_TIMESTAMP
 ) COMMENT 'LLM 网关调用量化';
+
+-- 每用户每日 token 用量(按调用累计,主键 (user_id, usage_date))
+CREATE TABLE IF NOT EXISTS token_usage_daily (
+    user_id     BIGINT NOT NULL,
+    usage_date  DATE NOT NULL,
+    prompt_tokens INT DEFAULT 0 COMMENT '上行(提示)token 累计',
+    completion_tokens INT DEFAULT 0 COMMENT '下行(生成)token 累计',
+    requests INT DEFAULT 0 COMMENT '调用次数',
+    PRIMARY KEY (user_id, usage_date)
+) COMMENT '每用户每日 token 用量';

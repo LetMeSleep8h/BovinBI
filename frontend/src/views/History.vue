@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { historyStats, listQueryLogs } from '@/api'
+import { historyStats, listQueryLogs, tokenUsage, tokenUsageToday } from '@/api'
 import type { QueryLog } from '@/api/types'
 
 const records = ref<QueryLog[]>([])
 const stats = ref<any>({})
+const usageRows = ref<any[]>([])
+const usageToday = ref<any>({})
+const usageAll = ref(false)
 const total = ref(0)
 const page = ref(1)
 const size = 15
@@ -20,6 +23,12 @@ async function load() {
     loading.value = false
   }
   stats.value = await historyStats()
+  await loadUsage()
+}
+
+async function loadUsage() {
+  usageRows.value = await tokenUsage(14, usageAll.value)
+  usageToday.value = await tokenUsageToday(usageAll.value)
 }
 
 onMounted(load)
@@ -28,6 +37,30 @@ onMounted(load)
 <template>
   <div class="page">
     <h3>查询历史与运行状态</h3>
+
+    <el-card shadow="never" style="margin-bottom: 16px">
+      <template #header>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>我的 Token 用量(每用户每日独立存储)</span>
+          <el-switch v-model="usageAll" active-text="全员视角" @change="loadUsage" />
+        </div>
+      </template>
+      <el-row :gutter="16" style="margin-bottom: 12px">
+        <el-col :span="12"><el-statistic title="今日 tokens" :value="usageToday.tokens || 0" /></el-col>
+        <el-col :span="12"><el-statistic title="今日调用次数" :value="usageToday.requests || 0" /></el-col>
+      </el-row>
+      <el-table :data="usageRows" size="small" max-height="260">
+        <el-table-column prop="usageDate" label="日期" width="110" />
+        <el-table-column prop="username" label="用户" width="120" />
+        <el-table-column prop="promptTokens" label="上行 tokens" width="120" />
+        <el-table-column prop="completionTokens" label="下行 tokens" width="120" />
+        <el-table-column prop="totalTokens" label="合计" width="110" />
+        <el-table-column prop="requests" label="调用次数" />
+      </el-table>
+      <div v-if="usageRows.length === 0" class="muted" style="padding: 8px 0">
+        暂无记录(离线规则引擎不消耗 token;接入 LLM 后每次调用自动累计)
+      </div>
+    </el-card>
 
     <el-row :gutter="16" class="stat-row">
       <el-col :span="6">

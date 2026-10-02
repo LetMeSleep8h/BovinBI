@@ -1,6 +1,8 @@
 package com.eighthours.bovinbi.llm;
 
 import com.eighthours.bovinbi.common.BizException;
+import com.eighthours.bovinbi.security.UserContext;
+import com.eighthours.bovinbi.service.TokenUsageService;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,9 +36,13 @@ public class LangChain4jClient implements LlmClient {
     private final ObjectMapper objectMapper;
     private volatile ChatLanguageModel chatModel;
 
-    public LangChain4jClient(BovinProperties props, ObjectMapper objectMapper) {
+    private final TokenUsageService tokenUsageService;
+
+    public LangChain4jClient(BovinProperties props, ObjectMapper objectMapper,
+                             TokenUsageService tokenUsageService) {
         this.props = props;
         this.objectMapper = objectMapper;
+        this.tokenUsageService = tokenUsageService;
     }
 
     /** 懒构建:首次调用才创建模型实例,provider=mock 时零外部依赖启动 */
@@ -68,6 +74,7 @@ public class LangChain4jClient implements LlmClient {
                     SystemMessage.from(systemPrompt),
                     UserMessage.from(userPrompt));
             Response<AiMessage> resp = model().generate(messages);
+            recordUsage(resp);
             String content = resp.content().text();
             if (content == null || content.isBlank()) {
                 throw new BizException(502, "LLM 返回内容为空");
@@ -78,6 +85,18 @@ public class LangChain4jClient implements LlmClient {
         } catch (Exception e) {
             log.warn("LLM 调用失败: {}", e.getMessage());
             throw new BizException(502, "LLM 调用失败: " + e.getMessage());
+        }
+    }
+
+    /** token 用量计量:每用户每日独立累计(uid 取请求线程,无用户态则跳过) */
+    private void recordUsage(Response<AiMessage> resp) {
+        try {
+            var usage = resp.tokenUsage();
+            tokenUsageService.record(UserContext.uid(),
+                    usage == null ? null : usage.inputTokenCount(),
+                    usage == null ? null : usage.outputTokenCount());
+        } catch (Exception ignore) {
+            // 计量失败绝不影响主链路
         }
     }
 

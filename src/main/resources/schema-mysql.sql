@@ -149,3 +149,13 @@ CREATE TABLE IF NOT EXISTS ecom_fact_order_item (
     price DECIMAL(10,2) COMMENT '商品成交金额(BRL)',
     freight_value DECIMAL(10,2) COMMENT '单件运费(BRL)'
 ) COMMENT '电商订单明细事实表(真实数据)';
+
+-- 每用户每日 token 用量(按调用累计,主键 (user_id, usage_date))
+CREATE TABLE IF NOT EXISTS token_usage_daily (
+    user_id     BIGINT NOT NULL,
+    usage_date  DATE NOT NULL,
+    prompt_tokens INT DEFAULT 0 COMMENT '上行(提示)token 累计',
+    completion_tokens INT DEFAULT 0 COMMENT '下行(生成)token 累计',
+    requests INT DEFAULT 0 COMMENT '调用次数',
+    PRIMARY KEY (user_id, usage_date)
+) COMMENT '每用户每日 token 用量';

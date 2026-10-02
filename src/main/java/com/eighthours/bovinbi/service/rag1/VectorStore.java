@@ -4,9 +4,8 @@ import java.util.List;
 
 /**
  * 意图问例向量库抽象:rag1 的检索底座。
- * 实现谱系:
- * - PgVectorStore:PostgreSQL + pgvector 扩展,HNSW 余弦索引,生产实现;
- * - InMemoryVectorStore:进程内暴力余弦,零依赖降级(演示/测试/PG 不可用时兜底)。
+ * 唯一生产实现 PgVectorStore(PostgreSQL + pgvector 扩展,HNSW 余弦索引);
+ * 单测用 mock,真实链路集成测试用 Testcontainers pgvector 容器。
  * 接口约定:写入的是 IntentExample 的向量,检索只返回意图+文本+相似度,不含向量本身。
  */
 public interface VectorStore {

@@ -19,8 +19,8 @@ import java.util.List;
  *   换嵌入模型必须重建表(维度不符 PG 会直接报错,不会静默错配);
  * - 向量以文本字面量 '[0.1,0.2,...]' 传参再 ::vector 强转 —— 不引 pgvector JDBC 插件,
  *   驱动只依赖官方 postgresql;
- * - 失败降级不抛异常:init/检索任何 SQLException 都只记日志并标记不健康,
- *   由装配层(Rag1Config)切换 InMemoryVectorStore,主链路永不因向量库故障中断。
+ * - 失败不抛异常:init/检索任何 SQLException 都只记日志并标记不健康,
+ *   装配层(Rag1Config)据此放弃装配 Bean,主链路永不因向量库故障中断。
  */
 @Slf4j
 public class PgVectorStore implements VectorStore {

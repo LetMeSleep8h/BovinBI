@@ -11,73 +11,72 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
- * rag1 意图识别契约(零依赖链路:hash 嵌入 + 进程内向量库 + 真实语料 CSV):
- * 1) 典型问法各归其类:闲聊/趋势/TopN/占比/环比/分组/单指标;
- * 2) 置信度不足不猜:乱码 → UNKNOWN,交给关键词兜底(主链路按取数处理,不误伤);
- * 3) 向量库空时闲聊兜底仍生效:关键词版接管(增强不替换);
- * 4) sideInfo 产出可注入 prompt 的意图行(含相似问例少样本)。
+ * rag1 意图识别纯逻辑单测(向量库 mock;pgvector 真实链路见 PgVectorStoreIntegrationTest):
+ * 1) 投票:每意图取最佳单例分,跨意图相似时语料多的意图不占便宜;
+ * 2) 置信度不足不猜:UNKNOWN + 闲聊关键词兜底(增强不替换);
+ * 3) sideInfo 产出可注入 prompt 的意图行(含相似问例少样本);
+ * 4) 语料 CSV 结构完好。
  */
 class Rag1IntentServiceTest {
 
+    private final BovinProperties.Rag1 cfg = new BovinProperties.Rag1();
+    private final VectorStore store = mock(VectorStore.class);
     private Rag1IntentService service;
 
     @BeforeEach
     void setUp() {
-        HashEmbeddingClient embedder = new HashEmbeddingClient();
-        InMemoryVectorStore store = new InMemoryVectorStore(embedder);
-        store.init();
-        store.seedIfEmpty(IntentSeeds.load());
-        service = new Rag1IntentService(store, embedder, new ChitChatHandler(), new BovinProperties().getRag1());
+        cfg.setTopK(3);
+        service = new Rag1IntentService(store, new HashEmbeddingClient(), new ChitChatHandler(), cfg);
+    }
+
+    private void stubMatches(VectorStore.Match... matches) {
+        when(store.search(any(), anyInt())).thenReturn(List.of(matches));
     }
 
     @Test
-    void typicalQuestionsClassifyToExpectedIntents() {
-        assertEquals(IntentLabel.CHIT_CHAT, service.recognize("你好呀").label());
-        assertEquals(IntentLabel.TREND, service.recognize("近12个月每月产奶量趋势").label());
-        assertEquals(IntentLabel.TOP_N, service.recognize("产奶量Top10牧场").label());
-        assertEquals(IntentLabel.RATIO, service.recognize("上个月各品种产奶量占比").label());
-        assertEquals(IntentLabel.COMPARE, service.recognize("产奶量环比怎么样").label());
-        assertEquals(IntentLabel.GROUP_STAT, service.recognize("各牧场产奶量").label());
-        assertEquals(IntentLabel.METRIC, service.recognize("总产奶量是多少").label());
+    void bestMatchPerIntentWinsVote() {
+        // TREND 两条 0.4/0.5(总分高)但 TOP_N 单条 0.9 → 按最佳单例分 TOP_N 胜出
+        stubMatches(new VectorStore.Match(IntentLabel.TOP_N, "产奶量Top10牧场", 0.90),
+                new VectorStore.Match(IntentLabel.TREND, "每月产奶量趋势", 0.50),
+                new VectorStore.Match(IntentLabel.TREND, "每日产奶量走势", 0.40));
+        Rag1IntentService.IntentResult r = service.recognize("产奶量前十的牧场");
+        assertEquals(IntentLabel.TOP_N, r.label());
+        assertEquals(0.90, r.confidence());
+        assertEquals("rag1", r.source());
+        assertFalse(r.exemplars().isEmpty());
     }
 
     @Test
-    void paraphraseStillHitsIntent() {
-        // 语料未逐字收录的换法:靠向量相似度落到正确意图
-        assertEquals(IntentLabel.TOP_N, service.recognize("产奶量前十的牧场有哪些").label());
-        assertEquals(IntentLabel.TREND, service.recognize("最近半年产奶量走势").label());
-    }
+    void belowThresholdFallsBackToUnknownOrKeywordChitchat() {
+        stubMatches(new VectorStore.Match(IntentLabel.METRIC, "总产奶量是多少", 0.30));
+        assertEquals(IntentLabel.UNKNOWN, service.recognize("zzzqqq乱码").label());
 
-    @Test
-    void lowConfidenceFallsBackToUnknownInsteadOfGuessing() {
-        Rag1IntentService.IntentResult r = service.recognize("zzzqqq无意义乱码xxx");
-        assertEquals(IntentLabel.UNKNOWN, r.label());
-        assertEquals("none", r.source());
-        assertFalse(r.chitChat());
-    }
-
-    @Test
-    void chitChatKeywordFallbackWorksOnEmptyCorpus() {
-        HashEmbeddingClient embedder = new HashEmbeddingClient();
-        InMemoryVectorStore empty = new InMemoryVectorStore(embedder);
-        empty.init();
-        Rag1IntentService bare = new Rag1IntentService(empty, embedder, new ChitChatHandler(),
-                new BovinProperties().getRag1());
-        Rag1IntentService.IntentResult r = bare.recognize("你好");
+        // 置信度不足但命中闲聊特征词 → 关键词兜底判闲聊
+        Rag1IntentService.IntentResult r = service.recognize("你好");
         assertEquals(IntentLabel.CHIT_CHAT, r.label());
         assertEquals("keyword", r.source());
     }
 
     @Test
+    void emptyMatchesReturnUnknown() {
+        when(store.search(any(), anyInt())).thenReturn(List.of());
+        assertEquals(IntentLabel.UNKNOWN, service.recognize("任意问题").label());
+    }
+
+    @Test
     void sideInfoCarriesLabelConfidenceAndExemplars() {
+        stubMatches(new VectorStore.Match(IntentLabel.TREND, "每月产奶量趋势", 0.9));
         Rag1IntentService.IntentResult r = service.recognize("近12个月每月产奶量趋势");
         String info = service.sideInfo(r);
         assertTrue(info.startsWith("意图: TREND"), "sideInfo 应带标签,实际: " + info);
         assertTrue(info.contains("相似问例"), "sideInfo 应带相似问例少样本,实际: " + info);
-        assertFalse(r.exemplars().isEmpty());
-        assertEquals("rag1", r.source());
+        assertTrue(Rag1IntentService.format(null).contains("未识别"), "空结果格式化应提示未识别");
     }
 
     @Test

@@ -58,7 +58,7 @@ java -jar target/BovinBI-1.0.0.jar        # 或 mvn spring-boot:run(默认离线
 
 ### 方式一:Docker Compose 一键起依赖(默认)
 ```bash
-docker compose -f docker/docker-compose.yml up -d   # MySQL 8 @ localhost:3308(+ pgvector @ 5432)
+docker compose -f docker/docker-compose.yml up -d   # MySQL 8 @ localhost:3308(+ pgvector @ 5433)
 mvn spring-boot:run                                  # 连 MySQL,启动自动建表+装载数据,离线规则引擎可用
 ```
 > 测试同样跑真实 MySQL:`mvn test` 用 Testcontainers 起一次性容器(需要本机 Docker;

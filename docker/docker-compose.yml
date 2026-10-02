@@ -1,8 +1,9 @@
 version: "3.8"
 
-# BovinBI 存储栈:MySQL 8 承载平台元数据 + 分析数据仓(表名 dwh_ 前缀区分)
+# BovinBI 存储栈:MySQL 8 承载平台元数据 + 分析数据仓(表名 dwh_ 前缀区分);
+# PostgreSQL+pgvector 承载 rag1 意图识别向量库(宿主端口避开本机已装的 5432)
 # 用法: docker compose -f docker/docker-compose.yml up -d
-# 后端默认即连本实例(localhost:3308),无需任何 profile;宿主端口避开 3306/3307 常见占用
+# 后端默认即连本实例(MySQL@3308 / pgvector@5433),无需任何 profile;宿主端口避开 3306/3307 常见占用
 
 services:
   mysql:
@@ -22,5 +23,21 @@ services:
       - ../sql/mysql-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
+  # rag1 意图识别向量库(pgvector 镜像自带 vector 扩展;建表/建 HNSW 索引由 PgVectorStore 幂等完成)
+  pgvector:
+    image: pgvector/pgvector:pg17
+    container_name: bovinbi-pgvector
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: bovin_rag
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: bovin123
+      TZ: Asia/Shanghai
+    volumes:
+      - bovinbi-pgvector-data:/var/lib/postgresql/data
+
 volumes:
   bovinbi-mysql-data:
+  bovinbi-pgvector-data:

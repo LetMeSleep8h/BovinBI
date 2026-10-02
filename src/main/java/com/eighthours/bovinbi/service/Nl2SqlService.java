@@ -1,6 +1,7 @@
 package com.eighthours.bovinbi.service;
 
 import com.eighthours.bovinbi.agent.AgentOrchestrator;
+import com.eighthours.bovinbi.agent.orchestra.WorkflowOrchestrator;
 import com.eighthours.bovinbi.common.BizException;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.dto.AnswerPayload;
@@ -20,8 +21,9 @@ import org.springframework.stereotype.Service;
  * 引擎分流(bovin.chat.engine):
  * - pipeline(默认):3~5 步由本类固定代码编排 —— LLM 单轮生成 + 自修复一次 + 规则兜底;
  * - agent:3~5 步交给模型自主编排(tool-calling 循环),外壳(分流/缓存/图表)不变;
- * - multi-agent:SQL Agent → Reviewer → Repair Agent 流水线,失败降级规则引擎。
- * 三种引擎共存一是为了 A/B 评测(同一评测集对比准确率/成本),二是新链路失败时
+ * - multi-agent:SQL Agent → Reviewer → Repair Agent 流水线,失败降级规则引擎;
+ * - orchestra:Supervisor 意图路由(rag1)+ 声明式工作流(写→审→修环 + 执行→洞察),失败降级规则引擎。
+ * 多引擎共存一是为了 A/B 评测(同一评测集对比准确率/成本),二是新链路失败时
  * 可一键切回管线 —— 新架构上线不破釜沉舟。
  *
  * 引擎降级链(pipeline 模式第 4~5 步内部,是全项目唯一的双引擎交汇点):
@@ -46,6 +48,7 @@ public class Nl2SqlService {
     private final BovinProperties props;
     private final ObjectProvider<AgentOrchestrator> agentOrchestrator;
     private final ObjectProvider<MultiAgentService> multiAgentService;
+    private final ObjectProvider<WorkflowOrchestrator> workflowOrchestrator;
     private final ObjectProvider<EmbeddingClient> embeddingClient;
     private final ObjectProvider<Rag1IntentService> rag1Intent;
 
@@ -104,16 +107,29 @@ public class Nl2SqlService {
                 } catch (Exception e) {
                     log.warn("multi-agent 链路失败,降级规则引擎: {}", e.getMessage());
                 }
-                // 降级:规则引擎接管,保持"可用回答或优雅降级"的对外契约
-                SchemaRetriever.LinkedSchema fbSchema = schemaRetriever.retrieve(datasetId, question);
-                SqlGenContext fbCtx = new SqlGenContext(question, timeRange, fbSchema.schemaText(), fbSchema.whitelist());
-                Answer fb = byRule(fbCtx, "MULTI_AGENT(降级RULE)");
-                if (fb.executed() == null) {
-                    return fallbackPayload(t0, fb.engine());
-                }
-                return assembleSuccess(fb, t0, cacheKey);
+                return ruleDowngrade(datasetId, question, timeRange, cacheKey, t0, "MULTI_AGENT(降级RULE)");
             }
             log.warn("engine=multi-agent 但 MultiAgentService 不可用,回退固定管线");
+        }
+
+        // 引擎分流 2:orchestra(多 Agent 编排:Supervisor 意图路由 + 声明式工作流,流程可组合)
+        if ("orchestra".equalsIgnoreCase(props.getChat().getEngine())) {
+            WorkflowOrchestrator orch = workflowOrchestrator.getIfAvailable();
+            if (orch != null) {
+                try {
+                    AnswerPayload p = orch.answer(datasetId, question, sessionId);
+                    // 编排内 insight 节点已出图表;闲聊直答等无结果形态由外壳补(列存在才推荐)
+                    if (p.getChart() == null && p.getColumns() != null) {
+                        p.setChart(chartAdvisor.advise(question, p.getColumns(), p.getRows()));
+                    }
+                    semanticCache.put(cacheKey, p);
+                    return p;
+                } catch (Exception e) {
+                    log.warn("orchestra 链路失败,降级规则引擎: {}", e.getMessage());
+                }
+                return ruleDowngrade(datasetId, question, timeRange, cacheKey, t0, "ORCHESTRA(降级RULE)");
+            }
+            log.warn("engine=orchestra 但 WorkflowOrchestrator 不可用,回退固定管线");
         }
 
         // 引擎分流 2:agent 模式把 3~5 步(召回/生成/守护/执行/修复)交给模型编排
@@ -142,6 +158,18 @@ public class Nl2SqlService {
             return fallbackPayload(t0, answer.engine());
         }
         return assembleSuccess(answer, t0, cacheKey);
+    }
+
+    /** 引擎降级公共路径(multi-agent / orchestra 共用):规则引擎接管;仍认不出则优雅降级 */
+    private AnswerPayload ruleDowngrade(Long datasetId, String question, TimeRange timeRange,
+                                        String cacheKey, long t0, String engineLabel) {
+        SchemaRetriever.LinkedSchema fbSchema = schemaRetriever.retrieve(datasetId, question);
+        SqlGenContext fbCtx = new SqlGenContext(question, timeRange, fbSchema.schemaText(), fbSchema.whitelist());
+        Answer fb = byRule(fbCtx, engineLabel);
+        if (fb.executed() == null) {
+            return fallbackPayload(t0, fb.engine());
+        }
+        return assembleSuccess(fb, t0, cacheKey);
     }
 
     /** 步骤 6 的公共组装:图表推荐 + 载荷 + 成功结果写缓存(pipeline 与 multi-agent 降级路径共用) */

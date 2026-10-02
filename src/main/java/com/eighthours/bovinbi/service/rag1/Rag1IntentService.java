@@ -71,7 +71,12 @@ public class Rag1IntentService {
 
     /** 注入 prompt 的意图行:标签 + 置信度 + 相似问例(少样本),供生成/编排参考 */
     public String sideInfo(IntentResult r) {
-        if (r.label() == IntentLabel.UNKNOWN) {
+        return format(r);
+    }
+
+    /** 静态格式化:orchestra 等编排节点拿 IntentResult 即可渲染,无需持有本服务实例 */
+    public static String format(IntentResult r) {
+        if (r == null || r.label() == IntentLabel.UNKNOWN) {
             return "意图: 未识别(按取数问题处理)";
         }
         String ex = r.exemplars().isEmpty() ? "" : ";相似问例: " + String.join(" | ", r.exemplars());

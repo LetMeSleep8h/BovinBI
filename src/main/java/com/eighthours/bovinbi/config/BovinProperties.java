@@ -24,13 +24,14 @@ public class BovinProperties {
 
     @Data
     public static class Chat {
-        /** 查询引擎:pipeline=固定管线(默认) | agent=单Agent工具循环 | multi-agent=SQL/审查/修复三Agent流水线 */
+        /** 查询引擎:pipeline=固定管线(默认) | agent=单Agent工具循环 | multi-agent=三Agent流水线 | orchestra=多Agent编排(Supervisor路由+声明式工作流) */
         private String engine = "pipeline";
         private boolean fallbackToRule = true;
         private int maxRows = 1000;
         private int queryTimeoutSeconds = 8;
         private Agent agent = new Agent();
         private MultiAgent multiAgent = new MultiAgent();
+        private Orchestra orchestra = new Orchestra();
     }
 
     /** multi-agent 引擎参数 */
@@ -39,6 +40,15 @@ public class BovinProperties {
         /** 审查不过时的修复轮数(SQL Agent 1 次 + Repair Agent N 次) */
         private int maxRepairs = 2;
         /** 是否启用 LLM 语义审查(关闭则只跑确定性审查:守护/时间对账/LIMIT) */
+        private boolean llmReview = true;
+    }
+
+    /** orchestra 引擎参数(多 Agent 编排:Supervisor 路由 + 声明式工作流) */
+    @Data
+    public static class Orchestra {
+        /** 修复环轮数(首轮生成 + N 轮定向修复,同 multi-agent.max-repairs 语义) */
+        private int maxRepairs = 2;
+        /** 是否启用 LLM 语义审查(关闭则修复环只跑确定性审查,整步在编排中跳过) */
         private boolean llmReview = true;
     }
 

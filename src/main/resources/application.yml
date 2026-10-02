@@ -34,6 +34,7 @@ springdoc:
 bovin:
   chat:
     # 查询引擎: pipeline=固定管线(默认,行为与旧版一致) | agent=工具调用循环(需 provider=openai,详见 docs/06)
+    #           | multi-agent=三Agent流水线 | orchestra=多Agent编排(Supervisor意图路由+声明式工作流)
     engine: agent
     # LLM 生成失败/超时时是否回退到内置规则引擎(保证演示不中断)
     fallback-to-rule: true
@@ -55,6 +56,11 @@ bovin:
     multi-agent:
       max-repairs: 2
       llm-review: true
+    # orchestra 引擎(engine=orchestra 时生效):Supervisor 路由(rag1 意图→闲聊直答/取数工作流)
+    # + 声明式工作流(schema → [写→确定性审→语义审]×修复环 → 执行 → 洞察)
+    orchestra:
+      max-repairs: 2      # 修复环轮数(首轮生成 + N 轮定向修复)
+      llm-review: true    # 语义审查(关闭则环内只跑守护/时间对账,整步跳过)
   cache:
     ttl-seconds: 600
     max-size: 512

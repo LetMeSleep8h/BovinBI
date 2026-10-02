@@ -19,6 +19,8 @@ import com.eighthours.bovinbi.mapper.ChatSessionMapper;
 import com.eighthours.bovinbi.mapper.DatasetFieldMapper;
 import com.eighthours.bovinbi.mapper.DatasetMapper;
 import com.eighthours.bovinbi.mapper.QueryLogMapper;
+import com.eighthours.bovinbi.entity.User;
+import com.eighthours.bovinbi.mapper.UserMapper;
 import com.eighthours.bovinbi.mcp.McpToolRegistry;
 import com.eighthours.bovinbi.request.ChatExecuteReq;
 import com.eighthours.bovinbi.request.ChatParseReq;
@@ -114,12 +116,13 @@ public class ChatQueryServiceImpl implements ChatQueryService {
     private final BovinProperties props;
     private final ObjectMapper objectMapper;
     private final McpToolRegistry mcpRegistry;
+    private final UserMapper userMapper;
 
     public ChatQueryServiceImpl(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper,
                                 QueryLogMapper queryLogMapper, DatasetMapper datasetMapper,
                                 DatasetFieldMapper fieldMapper, JdbcTemplate dwhJdbcTemplate,
                                 BovinProperties props, ObjectMapper objectMapper,
-                                McpToolRegistry mcpRegistry) {
+                                McpToolRegistry mcpRegistry, UserMapper userMapper) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.queryLogMapper = queryLogMapper;
@@ -129,6 +132,7 @@ public class ChatQueryServiceImpl implements ChatQueryService {
         this.props = props;
         this.objectMapper = objectMapper;
         this.mcpRegistry = mcpRegistry;
+        this.userMapper = userMapper;
     }
 
     // ==================== 状态区:parse 暂存与语义缓存(进程内) ====================
@@ -804,6 +808,14 @@ public class ChatQueryServiceImpl implements ChatQueryService {
         // ---------- 第 2 步:越权与一致性校验(用户归属 + 会话归属双保险) ----------
         if (!stored.userId().equals(UserContext.uid())) {
             throw new BizException(403, "无权执行该查询");
+        }
+        // 权限划分:STEP(每一步过问)模式下,执行必须携带用户显式确认(approved=true)
+        User owner = userMapper.selectById(stored.userId());
+        if (owner != null && "STEP".equalsIgnoreCase(owner.getApprovalMode())
+                && !Boolean.TRUE.equals(req.getApproved())) {
+            // 拒绝不消费暂存:用户看过 SQL 后可携带 approved=true 重新执行同一次解析
+            parseStore.put(req.getQueryId(), stored);
+            throw new BizException(400, "当前为「逐步确认」模式:请先查看 SQL,确认后再执行(approved=true)");
         }
         if (req.getSessionId() != null && !req.getSessionId().equals(stored.sessionId())) {
             throw new BizException(404, "会话与解析结果不匹配");

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Delete, Promotion } from '@element-plus/icons-vue'
 import {
   ask, askStream, createSession, deleteSession, listDatasets, listMessages, listSessions
@@ -77,6 +77,18 @@ async function send(q?: string) {
     const bot = await askStream(currentId.value!, text, (s) => {
       liveSteps.value.push(s)
       scrollBottom()
+    }, async (a) => {
+      // 逐步确认模式:展示待执行 SQL,用户决定放行或取消
+      try {
+        await ElMessageBox.confirm(
+          `${a.explanation || ''}\n\n${a.sql}`,
+          '逐步确认 · 是否执行这条 SQL?',
+          { confirmButtonText: '确认执行', cancelButtonText: '取消', customClass: 'sql-confirm' }
+        )
+        return true
+      } catch {
+        return false
+      }
     })
     messages.value.push(bot)
   } catch (e) {

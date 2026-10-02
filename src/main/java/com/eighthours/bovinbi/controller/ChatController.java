@@ -81,6 +81,16 @@ public class ChatController {
         return emitter;
     }
 
+    /** 逐步确认模式:回填用户的执行/取消决策(挂起中的流式问答由此放行或终止) */
+    @PostMapping("/approve/{queryId}")
+    public ApiResponse<Void> approve(@PathVariable long queryId, @RequestBody ApproveReq req) {
+        com.eighthours.bovinbi.security.ApprovalHub.offer(queryId, Boolean.TRUE.equals(req.approve()));
+        return ApiResponse.ok();
+    }
+
+    public record ApproveReq(Boolean approve) {
+    }
+
     /** 两段式:理解问题并生成/守护 SQL,不查库 */
     @PostMapping("/parse")
     public ApiResponse<ChatParseResp> parse(@RequestBody ChatParseReq req) {

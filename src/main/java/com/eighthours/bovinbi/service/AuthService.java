@@ -93,6 +93,21 @@ public class AuthService {
                 u.getUsername(), u.getNickname(), u.getRole());
     }
 
+    /** 设置 AI 执行权限划分:AUTO=完全允许 / STEP=每一步过问(仅这两种取值) */
+    public void setApprovalMode(Long uid, String mode) {
+        if (!"AUTO".equalsIgnoreCase(mode) && !"STEP".equalsIgnoreCase(mode)) {
+            throw new BizException(400, "权限模式仅支持 AUTO(完全允许) 或 STEP(每一步过问)");
+        }
+        User u = userMapper.selectById(uid);
+        if (u == null) {
+            throw new BizException(401, "用户不存在");
+        }
+        User upd = new User();
+        upd.setId(uid);
+        upd.setApprovalMode(mode.toUpperCase());
+        userMapper.updateById(upd);
+    }
+
     public User me(Long uid) {
         User u = userMapper.selectById(uid);
         if (u == null) {

@@ -9,10 +9,16 @@ import com.eighthours.bovinbi.entity.ChatMessage;
 import com.eighthours.bovinbi.entity.ChatSession;
 import com.eighthours.bovinbi.entity.Dataset;
 import com.eighthours.bovinbi.entity.QueryLog;
+import com.eighthours.bovinbi.entity.User;
 import com.eighthours.bovinbi.mapper.ChatMessageMapper;
 import com.eighthours.bovinbi.mapper.ChatSessionMapper;
 import com.eighthours.bovinbi.mapper.DatasetMapper;
 import com.eighthours.bovinbi.mapper.QueryLogMapper;
+import com.eighthours.bovinbi.mapper.UserMapper;
+import com.eighthours.bovinbi.request.ChatExecuteReq;
+import com.eighthours.bovinbi.request.ChatParseReq;
+import com.eighthours.bovinbi.response.ChatParseResp;
+import com.eighthours.bovinbi.security.ApprovalHub;
 import com.eighthours.bovinbi.security.UserContext;
 import com.eighthours.bovinbi.trace.TraceHub;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /** 会话与问答编排:持久化用户/助手消息、审计日志 */
 @Slf4j
@@ -34,7 +41,12 @@ public class ChatService {
     private final DatasetMapper datasetMapper;
     private final QueryLogMapper queryLogMapper;
     private final Nl2SqlService nl2SqlService;
+    private final ChatQueryService chatQueryService;
+    private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
+
+    /** 逐步确认模式的等待上限:超时视为拒绝(不无限挂起连接与线程) */
+    private static final long APPROVAL_TIMEOUT_MS = 120_000;
 
     public List<SessionVO> listSessions() {
         List<ChatSession> sessions = sessionMapper.selectList(new LambdaQueryWrapper<ChatSession>()
@@ -87,9 +99,81 @@ public class ChatService {
         return runAsk(sessionId, question, queryId);
     }
 
+    /**
+     * 逐步确认模式流程:parse 生成 SQL(不执行)→ SSE 推 approval 事件(带 SQL)
+     * → 挂起等待用户决策(/api/chat/approve)→ 放行则 execute(approved)→ 组装消息。
+     * 拒绝/超时:落一条取消说明消息,不执行任何查询。
+     */
+    private MessageVO runAskStepMode(ChatSession session, String question, long queryId) {
+        TraceHub.publish(queryId, "权限模式", "逐步确认:先生成 SQL,等待用户确认后执行", true);
+        try {
+            ChatParseResp parse = chatQueryService.parse(ChatParseReq.builder()
+                    .queryId(queryId).sessionId(session.getId()).question(question).build());
+            if (!"COMPLETED".equalsIgnoreCase(String.valueOf(parse.getState()))) {
+                return finishStep(session, queryId, parse.getErrorMsg() == null ? "未能理解该问题" : parse.getErrorMsg(), null);
+            }
+            var cand = parse.getCandidates().get(0);
+            TraceHub.publish(queryId, "SQL待确认", cand.getExplanation() == null ? "" : cand.getExplanation(), true);
+            TraceHub.sendEvent(queryId, "approval", Map.of(
+                    "queryId", queryId,
+                    "sql", cand.getSql() == null ? "" : cand.getSql(),
+                    "explanation", cand.getExplanation() == null ? "" : cand.getExplanation()));
+            boolean approved = ApprovalHub.await(queryId).get(APPROVAL_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            ApprovalHub.remove(queryId);
+            TraceHub.publish(queryId, approved ? "用户已确认" : "用户已取消", approved ? "放行执行" : "本次不执行任何查询", approved);
+            if (!approved) {
+                return finishStep(session, queryId, "已按「逐步确认」模式取消执行,未运行任何 SQL。", null);
+            }
+            AnswerPayload payload = chatQueryService.execute(ChatExecuteReq.builder()
+                    .queryId(queryId).parseId(cand.getParseId()).sessionId(session.getId()).approved(true).build());
+            return finishStep(session, queryId, contentOf(payload), payload);
+        } catch (Exception e) {
+            log.warn("逐步确认流程异常: {}", e.getMessage());
+            ApprovalHub.remove(queryId);
+            return finishStep(session, queryId, "查询失败: " + e.getMessage(), null);
+        }
+    }
+
+    /** STEP 流程收尾:助手消息落库(成功路径 execute 已落,此处只补取消/失败消息)并组装 VO */
+    private MessageVO finishStep(ChatSession session, long queryId, String content, AnswerPayload payload) {
+        if (payload == null) {
+            ChatMessage bot = new ChatMessage();
+            bot.setSessionId(session.getId());
+            bot.setRole("ASSISTANT");
+            bot.setContent(content);
+            try {
+                bot.setPayload(objectMapper.writeValueAsString(Map.of("fallback", true, "engine", "STEP_MODE")));
+            } catch (Exception ignore) {
+                bot.setPayload("{}");
+            }
+            messageMapper.insert(bot);
+            return toVO(bot);
+        }
+        // execute 已落库完整消息;这里返回等价 VO 供前端即时渲染
+        try {
+            return new MessageVO(null, session.getId(), "ASSISTANT", content,
+                    objectMapper.readTree(objectMapper.writeValueAsString(payload)), null);
+        } catch (Exception ignore) {
+            return new MessageVO(null, session.getId(), "ASSISTANT", content, null, null);
+        }
+    }
+
+    private String contentOf(AnswerPayload p) {
+        if (p.isFallback()) {
+            return p.getFallbackHint() == null ? "查询失败" : p.getFallbackHint();
+        }
+        return p.getExplanation() == null || p.getExplanation().isBlank()
+                ? "已完成查询,共 " + p.getRowCount() + " 行结果" : p.getExplanation();
+    }
+
     private MessageVO runAsk(Long sessionId, String question, long queryId) {
         TraceHub.publish(queryId, "会话校验", "校验会话归属与数据集", true);
         ChatSession session = mustOwn(sessionId);
+        // 权限划分:STEP(每一步过问)→ 生成 SQL 后等用户确认再执行;AUTO(完全允许)→ 全自动
+        User owner = userMapper.selectById(session.getUserId());
+        if (queryId > 0 && owner != null && "STEP".equalsIgnoreCase(owner.getApprovalMode())) {
+            return runAskStepMode(session, question, queryId);
+        }
         if (session.getTitle() == null || session.getTitle().isBlank()) {
             ChatSession upd = new ChatSession();
             upd.setId(sessionId);

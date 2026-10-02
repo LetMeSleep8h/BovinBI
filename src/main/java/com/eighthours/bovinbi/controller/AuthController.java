@@ -33,4 +33,14 @@ public class AuthController {
     public ApiResponse<User> me() {
         return ApiResponse.ok(authService.me(UserContext.uid()));
     }
+
+    /** AI 执行权限划分:AUTO=完全允许 / STEP=每一步过问(仅这两种取值) */
+    @PutMapping("/approval-mode")
+    public ApiResponse<Void> setApprovalMode(@RequestBody ApprovalModeReq req) {
+        authService.setApprovalMode(UserContext.uid(), req.mode());
+        return ApiResponse.ok();
+    }
+
+    public record ApprovalModeReq(String mode) {
+    }
 }

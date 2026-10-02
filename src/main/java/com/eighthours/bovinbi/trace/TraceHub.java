@@ -79,12 +79,12 @@ public final class TraceHub {
 
     /** 结束:推终止事件并清理本次查询的全部状态 */
     public static void finish(long queryId, String type, Object payload) {
+        sendEvent(queryId, type, payload);
         List<SseEmitter> subs = SUBSCRIBERS.get(queryId);
         if (subs != null) {
             synchronized (subs) {
                 for (SseEmitter emitter : new ArrayList<>(subs)) {
                     try {
-                        emitter.send(SseEmitter.event().name(type).data(MAPPER.writeValueAsString(payload)));
                         emitter.complete();
                     } catch (Exception ignore) {
                         // 订阅端已断开,清理即可
@@ -93,8 +93,25 @@ public final class TraceHub {
             }
         }
         HISTORY.remove(queryId);
-        SUBSCRIBERS.remove(queryId);
         SEQS.remove(queryId);
+        SUBSCRIBERS.remove(queryId);
+    }
+
+    /** 推送自定义事件(不结束流):逐步确认模式的 approval 事件等交互类通知用 */
+    public static void sendEvent(long queryId, String eventName, Object payload) {
+        List<SseEmitter> subs = SUBSCRIBERS.get(queryId);
+        if (subs == null) {
+            return;
+        }
+        synchronized (subs) {
+            for (SseEmitter emitter : new ArrayList<>(subs)) {
+                try {
+                    emitter.send(SseEmitter.event().name(eventName).data(MAPPER.writeValueAsString(payload)));
+                } catch (Exception ignore) {
+                    // 订阅端已断开
+                }
+            }
+        }
     }
 
     private static void push(StepEvent e) {

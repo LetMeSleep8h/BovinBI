@@ -25,7 +25,8 @@ export const ask = (sessionId: number, question: string) =>
 export async function askStream(
   sessionId: number,
   question: string,
-  onStep: (step: { seq: number; name: string; detail: string; ok: boolean }) => void
+  onStep: (step: { seq: number; name: string; detail: string; ok: boolean }) => void,
+  onApproval?: (a: { queryId: number; sql: string; explanation: string }) => Promise<boolean>
 ): Promise<any> {
   const token = localStorage.getItem('bovin_token')
   const resp = await fetch('/api/chat/ask/stream', {
@@ -58,6 +59,10 @@ export async function askStream(
       if (!data) continue
       const payload = JSON.parse(data)
       if (event === 'step') onStep(payload)
+      else if (event === 'approval' && onApproval) {
+        const ok = await onApproval(payload)
+        await approveQuery(payload.queryId, ok)
+      }
       else if (event === 'done') final = payload
       else if (event === 'error') throw new Error(payload.message || '查询失败')
     }
@@ -70,8 +75,12 @@ export async function askStream(
 export const parseQuery = (sessionId: number, question: string) =>
   http.post<never, any>('/chat/parse', { sessionId, question })
 
-export const executeQuery = (queryId: number, parseId: number) =>
-  http.post<never, any>('/chat/execute', { queryId, parseId })
+export const executeQuery = (queryId: number, parseId: number, approved = true) =>
+  http.post<never, any>('/chat/execute', { queryId, parseId, approved })
+
+/** 逐步确认模式:回填执行/取消决策,放行或终止挂起中的流式问答 */
+export const approveQuery = (queryId: number, approve: boolean) =>
+  http.post(`/chat/approve/${queryId}`, { approve })
 
 export const listDatasets = () => http.get<never, any[]>('/datasets')
 

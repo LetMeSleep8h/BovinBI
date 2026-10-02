@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     password    VARCHAR(128) NOT NULL COMMENT 'BCrypt',
     nickname    VARCHAR(64)  COMMENT '显示名',
     role        VARCHAR(32)  DEFAULT 'ANALYST' COMMENT 'ADMIN/ANALYST',
+    approval_mode VARCHAR(16) DEFAULT 'AUTO' COMMENT 'AI执行权限:AUTO完全允许/STEP逐步确认',
     created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP
 ) COMMENT '用户表';
 

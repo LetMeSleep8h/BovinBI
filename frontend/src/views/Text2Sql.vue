@@ -211,7 +211,7 @@ onMounted(async () => {
         <div class="muted" style="margin-bottom: 6px">{{ c.explanation }}</div>
         <pre class="sql">{{ c.sql }}</pre>
         <el-button type="success" :icon="CaretRight" :loading="executing" @click="doExecute(c.parseId)">
-          执行查询
+          确认并执行(点击即确认)
         </el-button>
       </div>
     </el-card>

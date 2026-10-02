@@ -14,4 +14,6 @@ public class ChatExecuteReq {
     private Long queryId;
     private Integer parseId;
     private Long sessionId;
+    /** 逐步确认模式(STEP)下必须为 true:表示用户已看过 SQL 并显式确认执行 */
+    private Boolean approved;
 }

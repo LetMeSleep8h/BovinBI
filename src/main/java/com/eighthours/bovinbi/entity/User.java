@@ -16,5 +16,7 @@ public class User {
     private String password;
     private String nickname;
     private String role;
+    /** AI 执行权限划分:AUTO=完全允许 / STEP=每一步过问(执行前需确认) */
+    private String approvalMode;
     private LocalDateTime createdAt;
 }

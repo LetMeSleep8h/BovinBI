@@ -58,6 +58,7 @@ public class DataLoader implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        migrateUserApprovalMode();
         seedMetadata();
         seedRealMilkDataset();
         seedEcommerceDataset();
@@ -68,6 +69,19 @@ public class DataLoader implements ApplicationRunner {
         loadDwhData();
         loadRealMilkData();
         loadEcommerceData();
+    }
+
+    /**
+     * 老库补列(approval_mode):CREATE TABLE IF NOT EXISTS 不会给已存在的表加列,
+     * MySQL 又不支持 ADD COLUMN IF NOT EXISTS —— 幂等方式:重复列报错即视为已迁移。
+     */
+    private void migrateUserApprovalMode() {
+        try {
+            dwhJdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN approval_mode VARCHAR(16) DEFAULT 'AUTO'");
+            log.info("sys_user 已补充 approval_mode 列(AI 执行权限划分)");
+        } catch (Exception e) {
+            // Duplicate column = 已迁移,静默
+        }
     }
 
     // ---------------- 元数据种子 ----------------

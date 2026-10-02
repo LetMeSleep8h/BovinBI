@@ -94,6 +94,12 @@ public class BovinProperties {
     public static class Security {
         private String jwtSecret = "bovinbi-dev-secret-key";
         private long jwtTtlHours = 24;
+        /** 同一用户名连续登录失败 N 次后临时锁定(防爆破,进程内计数) */
+        private int maxLoginFailures = 5;
+        /** 登录锁定时长(秒) */
+        private int loginLockSeconds = 900;
+        /** 是否开放自助注册(演示默认开;生产建议关闭走管理员开户) */
+        private boolean registerEnabled = true;
     }
 
     @Data

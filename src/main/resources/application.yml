@@ -107,6 +107,11 @@ bovin:
   security:
     jwt-secret: bovinbi-dev-secret-key-please-change-in-prod-0123456789
     jwt-ttl-hours: 24
+    # 登录加固:同一用户名连续失败 max-login-failures 次 → 锁定 login-lock-seconds 秒(防爆破)
+    max-login-failures: 5
+    login-lock-seconds: 900
+    # 自助注册(POST /api/auth/register);生产建议 false,走管理员开户
+    register-enabled: true
   llm:
     # LangChain4j 接入: provider: mock=离线规则引擎(无需API Key,默认) / openai=OpenAI 兼容协议
     # base-url 可选: DeepSeek https://api.deepseek.com / 通义千问 https://dashscope.aliyuncs.com/compatible-mode/v1 / GLM / OpenAI

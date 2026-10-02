@@ -27,7 +27,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (claims == null) {
             throw new BizException(401, "登录已过期,请重新登录");
         }
-        UserContext.set(((Number) claims.get("uid")).longValue(), claims.getSubject());
+        Object role = claims.get("role");
+        UserContext.set(((Number) claims.get("uid")).longValue(), claims.getSubject(),
+                role == null ? "ANALYST" : role.toString());
         return true;
     }
 

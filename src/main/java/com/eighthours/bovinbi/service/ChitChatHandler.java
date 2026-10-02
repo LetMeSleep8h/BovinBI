@@ -27,7 +27,15 @@ public class ChitChatHandler {
             return false;
         }
         String lower = question.toLowerCase();
-        return META.matcher(lower).find() && !DATA_SIGNAL.matcher(lower).find();
+        return META.matcher(lower).find() && !hasDataSignal(question);
+    }
+
+    /** 数据信号词判定独立暴露:rag1 的向量闲聊判定也用它做"带问候的正常取数"防误伤 */
+    public boolean hasDataSignal(String question) {
+        if (question == null) {
+            return false;
+        }
+        return DATA_SIGNAL.matcher(question.toLowerCase()).find();
     }
 
     public AnswerPayload answer(String question) {

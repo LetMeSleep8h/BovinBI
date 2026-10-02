@@ -42,6 +42,8 @@ class Nl2SqlServiceTest {
     private final ObjectProvider<com.eighthours.bovinbi.service.MultiAgentService> multiAgentProvider = mock(ObjectProvider.class);
     @SuppressWarnings("unchecked")
     private final ObjectProvider<com.eighthours.bovinbi.service.rag.EmbeddingClient> embedderProvider = mock(ObjectProvider.class);
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<com.eighthours.bovinbi.service.rag1.Rag1IntentService> rag1Provider = mock(ObjectProvider.class);
     private BovinProperties props;
     private Nl2SqlService service;
 
@@ -68,7 +70,8 @@ class Nl2SqlServiceTest {
                 props,
                 agentProvider,
                 multiAgentProvider,
-                embedderProvider);
+                embedderProvider,
+                rag1Provider);
     }
 
     private static ExecResult oneRow() {

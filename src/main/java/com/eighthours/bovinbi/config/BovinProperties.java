@@ -19,6 +19,7 @@ public class BovinProperties {
     private Llm llm = new Llm();
     private Dwh dwh = new Dwh();
     private Rag rag = new Rag();
+    private Rag1 rag1 = new Rag1();
     private Gateway gateway = new Gateway();
 
     @Data
@@ -119,6 +120,33 @@ public class BovinProperties {
             private String apiKey = "";
             private String model = "text-embedding-3-small";
         }
+    }
+
+    /**
+     * RAG1:意图识别增强(与 rag 的 Schema 召回互补,面向"问题级"而非"字段级")。
+     * 标注问例向量化后入库,新问题向量召回 topK → 按意图投票 → 意图标签 + 置信度 + 相似问例;
+     * 问例同时作为少样本注入各引擎 prompt,闲聊分流覆盖更多口语问法。
+     */
+    @Data
+    public static class Rag1 {
+        /** 开启后装配 Rag1IntentService;false 时无该 Bean,行为与旧版完全一致(可一键回滚) */
+        private boolean enabled = false;
+        /** pgvector 库 JDBC url(如 jdbc:postgresql://localhost:5432/bovinbi);留空 = 进程内向量库降级演示 */
+        private String url = "";
+        private String username = "postgres";
+        private String password = "";
+        /** 向量表名(需先 CREATE EXTENSION vector;建表建索引由 PgVectorStore 幂等完成) */
+        private String table = "rag1_intent_example";
+        /** 召回相似问例数 */
+        private int topK = 3;
+        /**
+         * 判定意图的余弦相似度阈值,低于则 UNKNOWN(交给关键词兜底,不影响主链路)。
+         * 校准依据(hash 嵌入实测):同义改写 0.65+,乱码/跨域噪声 <=0.45,取中间值;
+         * openai 嵌入下语义相似更分离,0.55 两侧均适用。
+         */
+        private double threshold = 0.55;
+        /** 建库连接超时毫秒:PG 不可达时快速失败切进程内兜底,不拖慢启动 */
+        private int connectionTimeoutMs = 5000;
     }
 
     /** 轻量 LLM 网关:OpenAI 兼容入口,路由/failover/熔断/限流/计量/响应缓存 */

@@ -71,6 +71,18 @@ bovin:
       base-url: ""
       api-key: ""
       model: text-embedding-3-small
+  rag1:
+    # 意图识别增强(RAG,问题级):标注问例向量化入库,新问题召回相似问例 → 意图投票 + 少样本注入
+    # 开启即装配 Rag1IntentService;关闭则 Bean 整体消失,闲聊分流回到关键词版(一键回滚)
+    enabled: false
+    # pgvector 库地址(需已安装 vector 扩展;建表/建 HNSW 索引幂等自动完成,语料空库自动灌入);
+    # 留空 = 进程内向量库(零安装演示);连不上 = 自动降级进程内,主链路不受影响
+    url: ""             # 例: jdbc:postgresql://localhost:5432/bovinbi
+    username: postgres
+    password: ""
+    table: rag1_intent_example
+    top-k: 3            # 召回相似问例数
+    threshold: 0.55     # 余弦相似度阈值(hash 实测:改写>=0.65,噪声<=0.45),低于则不判意图(UNKNOWN)
   gateway:
     # 轻量 LLM 网关:开启后暴露 POST /gateway/v1/chat/completions(OpenAI 兼容),
     # 业务侧把 bovin.llm.base-url 指向 http://localhost:8080/gateway/v1 即接入,代码零改动

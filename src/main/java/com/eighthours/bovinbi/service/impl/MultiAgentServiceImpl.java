@@ -12,9 +12,11 @@ import com.eighthours.bovinbi.service.SchemaRetriever;
 import com.eighthours.bovinbi.service.SqlGuard;
 import com.eighthours.bovinbi.service.TimeRange;
 import com.eighthours.bovinbi.service.TimeRangeParser;
+import com.eighthours.bovinbi.service.rag1.Rag1IntentService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -43,6 +45,7 @@ public class MultiAgentServiceImpl implements MultiAgentService {
     private final SqlGuard sqlGuard;
     private final QueryExecutor queryExecutor;
     private final BovinProperties props;
+    private final ObjectProvider<Rag1IntentService> rag1Intent;
 
     /** SQL Agent 系统提示词:与 NL2SQL 管线同一套硬约束,但只负责"写",不负责"审" */
     private static final String SQL_AGENT_SYSTEM = """
@@ -70,10 +73,14 @@ public class MultiAgentServiceImpl implements MultiAgentService {
 
         TimeRange tr = timeRangeParser.parse(question);
         SchemaRetriever.LinkedSchema schema = schemaRetriever.retrieve(datasetId, question);
+        // rag1 意图注入:标签 + 相似问例作为少样本,SQL Agent 的口径选择更稳(不可用时静默跳过)
+        Rag1IntentService rag1 = rag1Intent.getIfAvailable();
+        String intentLine = rag1 == null ? "" : "#Intent: " + rag1.sideInfo(rag1.recognize(question)) + "\n";
         String sideInfo = "今天日期: " + LocalDate.now() + ";时间理解: " + (tr == null
                 ? "未识别到明确时间,默认不添加时间过滤"
                 : "已解析为区间 [" + tr.start() + ", " + tr.endExclusive() + ") 标签:" + tr.label());
-        String context = "#Schema: " + schema.schemaText() + "\n#SideInfo: " + sideInfo + "\n#Question: " + question;
+        String context = "#Schema: " + schema.schemaText() + "\n" + intentLine + "#SideInfo: " + sideInfo
+                + "\n#Question: " + question;
 
         List<AgentTrace.ToolCall> trace = new ArrayList<>();
         int[] seq = {0};

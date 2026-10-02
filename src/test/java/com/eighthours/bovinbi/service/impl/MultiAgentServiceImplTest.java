@@ -68,7 +68,8 @@ class MultiAgentServiceImplTest {
         when(queryExecutor.execute(anyString())).thenReturn(oneRow());
 
         service = new MultiAgentServiceImpl(schemaRetriever, new TimeRangeParser(java.time.LocalDate.of(2026, 9, 5)),
-                llmClient, new SqlGuard(props), queryExecutor, props);
+                llmClient, new SqlGuard(props), queryExecutor, props,
+                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class));
     }
 
     /** LLM 桩:按脚本顺序回放响应;extractJson 用真实 ObjectMapper 解析 */

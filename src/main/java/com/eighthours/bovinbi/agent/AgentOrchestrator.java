@@ -13,6 +13,7 @@ import com.eighthours.bovinbi.service.SqlGuard;
 import com.eighthours.bovinbi.service.SqlResult;
 import com.eighthours.bovinbi.service.TimeRange;
 import com.eighthours.bovinbi.service.TimeRangeParser;
+import com.eighthours.bovinbi.service.rag1.Rag1IntentService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class AgentOrchestrator {
     private final QueryExecutor queryExecutor;
     private final LlmClient llmClient;
     private final BovinProperties props;
+    private final ObjectProvider<Rag1IntentService> rag1Intent;
 
     /** @param sessionId 会话 id(agent 记忆锚点);为 null(如评测单轮跑批)时生成一次性 id,避免题目间记忆串扰 */
     public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
@@ -68,9 +70,12 @@ public class AgentOrchestrator {
 
     /** 建立 ThreadLocal 上下文后进入工具循环;finally 清理是硬约束,异常路径也不允许泄漏 */
     private String runLoop(BovinAgent agent, AgentRunContext ctx, Long sessionId, TimeRange tr) {
+        // rag1 可用时把"意图 + 相似问例"注入 SideInfo:模型拿到少样本锚点,生成口径更稳
+        Rag1IntentService rag1 = rag1Intent.getIfAvailable();
+        String intentLine = rag1 == null ? "" : "#Intent: " + rag1.sideInfo(rag1.recognize(ctx.question())) + "\n";
         String userMessage = """
                 #SideInfo: %s
-                #Question: %s""".formatted(sideInfo(tr), ctx.question());
+                %s#Question: %s""".formatted(sideInfo(tr), intentLine, ctx.question());
         long memoryId = sessionId == null ? System.nanoTime() : sessionId;
         AgentContextHolder.set(ctx);
         try {

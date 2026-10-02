@@ -7,6 +7,7 @@ import com.eighthours.bovinbi.dto.AnswerPayload;
 import com.eighthours.bovinbi.dto.ChartSpec;
 import com.eighthours.bovinbi.dto.ExecResult;
 import com.eighthours.bovinbi.service.rag.EmbeddingClient;
+import com.eighthours.bovinbi.service.rag1.Rag1IntentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -46,6 +47,7 @@ public class Nl2SqlService {
     private final ObjectProvider<AgentOrchestrator> agentOrchestrator;
     private final ObjectProvider<MultiAgentService> multiAgentService;
     private final ObjectProvider<EmbeddingClient> embeddingClient;
+    private final ObjectProvider<Rag1IntentService> rag1Intent;
 
     public AnswerPayload answer(Long datasetId, String question) {
         return answer(datasetId, question, null);
@@ -55,8 +57,14 @@ public class Nl2SqlService {
     public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
         long t0 = System.currentTimeMillis();
 
-        // 步骤 0:意图分流 —— 闲聊/能力询问不进管线
-        if (chitChatHandler.isChitChat(question)) {
+        // 步骤 0:意图分流 —— rag1 可用时向量召回判闲聊(覆盖更多口语问法),关键词版兜底;
+        // 两者都以"无数据信号词"为前提,防止把带问候的正常取数误伤进闲聊
+        Rag1IntentService rag1 = rag1Intent.getIfAvailable();
+        if (rag1 != null) {
+            if (rag1.recognize(question).chitChat() && !chitChatHandler.hasDataSignal(question)) {
+                return chitChatHandler.answer(question);
+            }
+        } else if (chitChatHandler.isChitChat(question)) {
             return chitChatHandler.answer(question);
         }
 

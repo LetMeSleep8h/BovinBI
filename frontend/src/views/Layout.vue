@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, ChatDotRound, Coin, Document, SwitchButton } from '@element-plus/icons-vue'
+import { DataAnalysis, ChatDotRound, Coin, Document, MagicStick, SwitchButton } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 
 const router = useRouter()
@@ -44,6 +44,9 @@ function logout() {
         <el-menu :default-active="route.path" router style="border-right: none">
           <el-menu-item index="/chat">
             <el-icon><ChatDotRound /></el-icon>对话分析
+          </el-menu-item>
+          <el-menu-item index="/text2sql">
+            <el-icon><MagicStick /></el-icon>Text2SQL
           </el-menu-item>
           <el-menu-item index="/datasets">
             <el-icon><Coin /></el-icon>数据集管理

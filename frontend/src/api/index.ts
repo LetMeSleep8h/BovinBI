@@ -18,6 +18,13 @@ export const listMessages = (sessionId: number) => http.get<never, any[]>(`/chat
 export const ask = (sessionId: number, question: string) =>
   http.post<never, any>('/chat/ask', { sessionId, question })
 
+/** 两段式 text2sql:先 parse(生成/守护 SQL,不查库),再 execute(取回并执行) */
+export const parseQuery = (sessionId: number, question: string) =>
+  http.post<never, any>('/chat/parse', { sessionId, question })
+
+export const executeQuery = (queryId: number, parseId: number) =>
+  http.post<never, any>('/chat/execute', { queryId, parseId })
+
 export const listDatasets = () => http.get<never, any[]>('/datasets')
 
 export const listFields = (datasetId: number) => http.get<never, any[]>(`/datasets/${datasetId}/fields`)

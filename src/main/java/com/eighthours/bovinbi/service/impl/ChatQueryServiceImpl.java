@@ -724,6 +724,9 @@ public class ChatQueryServiceImpl implements ChatQueryService {
 
                     if (rawSql != null) {
                         // ---- 规则产物同样过守护(纵深防御:自己生成的 SQL 也不裸奔) ----
+                        // 守护不过(典型:离线规则引擎只认牧场表,当前数据集白名单不含)
+                        // → 优雅降级为"无法理解",不向前端抛 403
+                        try {
                         String s = rawSql.trim();
                         while (s.endsWith(";")) s = s.substring(0, s.length() - 1).trim();
                         s = s.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?m)^\\s*--.*$", " ").trim();
@@ -750,6 +753,9 @@ public class ChatQueryServiceImpl implements ChatQueryService {
                         }
                         explanation = ruleExplanation;
                         engine = agentTried ? "AGENT(降级RULE)" : llmTried ? "RULE(降级)" : "RULE";
+                        } catch (BizException ge) {
+                            log.warn("规则 SQL 未通过守护,按无法理解降级: {}", ge.getMessage());
+                        }
                     }
                 }
             }

@@ -10,6 +10,7 @@ const router = createRouter({
       redirect: '/chat',
       children: [
         { path: 'chat', component: () => import('@/views/Chat.vue') },
+        { path: 'text2sql', component: () => import('@/views/Text2Sql.vue') },
         { path: 'datasets', component: () => import('@/views/Datasets.vue') },
         { path: 'history', component: () => import('@/views/History.vue') }
       ]

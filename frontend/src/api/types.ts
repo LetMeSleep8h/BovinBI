@@ -49,6 +49,23 @@ export interface ChatSession {
   updatedAt: string
 }
 
+/** 两段式 parse 产物(与后端 ChatParseResp/SemanticParseInfo 对齐) */
+export interface ParseCandidate {
+  parseId: number
+  engine: string
+  question: string
+  sql: string | null
+  explanation: string | null
+}
+
+export interface ChatParseResp {
+  queryId: number
+  state: 'COMPLETED' | 'FAILED'
+  candidates: ParseCandidate[]
+  errorMsg?: string
+  costMs: number
+}
+
 export interface Dataset {
   id: number
   name: string

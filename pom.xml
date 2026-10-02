@@ -23,6 +23,8 @@
         <commons-csv.version>1.11.0</commons-csv.version>
         <!-- LLM 编排框架版本 -->
         <langchain4j.version>0.36.2</langchain4j.version>
+        <!-- Testcontainers 的 docker-java 客户端 API 版本(见 build 里 surefire 注释) -->
+        <docker.api.version>1.44</docker.api.version>
     </properties>
 
     <dependencies>
@@ -55,21 +57,16 @@
             <version>${jsqlparser.version}</version>
         </dependency>
 
-        <!-- 数据库驱动: 默认 H2(零安装演示), 生产切 MySQL -->
+        <!-- 数据库驱动: MySQL(平台库 + 数仓;测试用 Testcontainers 起一次性 MySQL) -->
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
         <!-- PostgreSQL + pgvector: rag1 意图识别向量库(bovin.rag1.url 指向装了 vector 扩展的 PG) -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
 
@@ -142,6 +139,28 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- 集成测试数据库:Testcontainers 起一次性 MySQL(@SpringBootTest 全部跑真库) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -156,6 +175,23 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <!-- 集成测试基座:Testcontainers 起 MySQL。
+                 docker-java 客户端 API 版本钉在 1.44(Docker 25+ 通用;Docker 29+ 最低要求 1.40,
+                 老守护进程可用 -Ddocker.api.version=1.41 覆盖);
+                 TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock 对 Docker Desktop 是
+                 同路径无操作,对 colima(lima VM)让 Ryuk 直连 VM 内真实 socket,
+                 绕开"虚拟机无法 bind mount 宿主 socket"的限制;colima 用户另需
+                 ~/.testcontainers.properties 配 docker.host 指向 colima socket(机器本地配置,不进仓库)。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Dapi.version=${docker.api.version}</argLine>
+                    <environmentVariables>
+                        <TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>/var/run/docker.sock</TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>
+                    </environmentVariables>
                 </configuration>
             </plugin>
         </plugins>

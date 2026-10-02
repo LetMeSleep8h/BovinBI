@@ -1,8 +1,6 @@
--- BovinBI MySQL 8 建表脚本(平台元数据 + DWH 数据仓)
--- 由 docker-compose 初始化自动执行;手工安装则: mysql -uroot -p < mysql-schema.sql
-
-CREATE DATABASE IF NOT EXISTS bovin_bi DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE bovin_bi;
+-- BovinBI 平台库建表脚本(spring.sql.init 启动幂等执行;连接已指向目标库,不再 CREATE DATABASE)
+-- DBA/docker 初始化版本(含建库语句)见 sql/mysql-schema.sql;DWH 演示表与真实数据表
+-- 亦由 DataLoader 启动时幂等创建,此处一并列全作为权威 schema。
 
 -- ============ 平台元数据 ============
 CREATE TABLE IF NOT EXISTS sys_user (
@@ -70,7 +68,22 @@ CREATE TABLE IF NOT EXISTS query_log (
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 ) COMMENT '查询审计(运营+评测数据来源)';
 
--- ============ 分析数据仓(DWH,生产建议独立库/独立只读实例;智慧牧场·奶牛养殖) ============
+CREATE TABLE IF NOT EXISTS gateway_usage (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ts                DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    provider          VARCHAR(64),
+    model             VARCHAR(64),
+    caller            VARCHAR(128),
+    prompt_tokens     INT,
+    completion_tokens INT,
+    cost_ms           INT,
+    success           TINYINT      DEFAULT 1,
+    error_msg         VARCHAR(512),
+    created_at        DATETIME     DEFAULT CURRENT_TIMESTAMP
+) COMMENT 'LLM 网关调用量化';
+
+-- ============ 分析数据仓(DWH;生产建议独立库/独立只读实例) ============
+-- 数据集一「牧场养殖分析」(合成演示数据)
 CREATE TABLE IF NOT EXISTS dwh_dim_farm (
     id BIGINT PRIMARY KEY,
     farm_code VARCHAR(32) COMMENT '牧场编号',
@@ -98,12 +111,10 @@ CREATE TABLE IF NOT EXISTS dwh_fact_milk (
     protein_rate DECIMAL(5,2) COMMENT '乳蛋白率(%)',
     lactation_stage VARCHAR(16) COMMENT '泌乳初期/中期/后期(干奶期无记录)'
 ) COMMENT '挤奶记录事实表';
+-- 索引见 sql/mysql-schema.sql(一次性初始化版);本脚本每次启动重复执行,MySQL 不支持
+-- CREATE INDEX IF NOT EXISTS,故不放幂等区
 
-CREATE INDEX idx_fact_date ON dwh_fact_milk (record_date);
-CREATE INDEX idx_fact_cattle ON dwh_fact_milk (cattle_id);
-CREATE INDEX idx_fact_farm ON dwh_fact_milk (farm_id);
-
--- 数据集二「全球牛奶产量」(OWID/FAOSTAT 真实数据,DataLoader 启动幂等装载)
+-- 数据集二「全球牛奶产量」(OWID/FAOSTAT 真实数据)
 CREATE TABLE IF NOT EXISTS dwh_dim_country (
     code VARCHAR(8) PRIMARY KEY COMMENT 'ISO 三位国家码',
     name VARCHAR(128) COMMENT '国家/地区名称'
@@ -115,21 +126,3 @@ CREATE TABLE IF NOT EXISTS dwh_fact_milk_prod (
     stat_year INT COMMENT '统计年份(1961 起)',
     milk_tonnes DECIMAL(14,1) COMMENT '当年牛奶总产量(吨)'
 ) COMMENT '各国牛奶年产量事实表(真实数据)';
-
-CREATE INDEX idx_milk_prod_country ON dwh_fact_milk_prod (country_code);
-CREATE INDEX idx_milk_prod_year ON dwh_fact_milk_prod (stat_year);
-
--- LLM 网关调用量化(每请求一行:成功/失败都落,供成本核算与供应商质量分析)
-CREATE TABLE IF NOT EXISTS gateway_usage (
-    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-    ts                DATETIME     DEFAULT CURRENT_TIMESTAMP,
-    provider          VARCHAR(64),
-    model             VARCHAR(64),
-    caller            VARCHAR(128),
-    prompt_tokens     INT,
-    completion_tokens INT,
-    cost_ms           INT,
-    success           TINYINT      DEFAULT 1,
-    error_msg         VARCHAR(512),
-    created_at        DATETIME     DEFAULT CURRENT_TIMESTAMP
-) COMMENT 'LLM 网关调用量化';

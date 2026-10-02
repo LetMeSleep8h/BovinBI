@@ -5,15 +5,17 @@ spring:
   application:
     name: BovinBI
   datasource:
-    # 默认使用 H2 文件数据库(MySQL 兼容模式),零安装即可演示;生产用 --spring.profiles.active=mysql 切换
-    url: jdbc:h2:file:./data/bovinbi;MODE=MySQL;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    # MySQL 8(平台库 + 数仓合一;docker/docker-compose.yml up -d 即得本实例,宿主机映射 3308)
+    # 生产拆分:bovin.dwh.url 指向独立只读数仓,平台库/分析库分离
+    url: jdbc:mysql://localhost:3308/bovin_bi?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: bovin
+    password: bovin123
   sql:
     init:
+      # 幂等建表(CREATE TABLE IF NOT EXISTS);docker-compose 首次初始化与本脚本二选一皆可
       mode: always
-      schema-locations: classpath:schema-h2.sql
+      schema-locations: classpath:schema-mysql.sql
   jackson:
     default-property-inclusion: non_null
     time-zone: GMT+8

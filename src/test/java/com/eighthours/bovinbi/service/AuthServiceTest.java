@@ -1,5 +1,7 @@
 package com.eighthours.bovinbi.service;
 
+import com.eighthours.bovinbi.support.MySqlTestBase;
+
 import com.eighthours.bovinbi.common.BizException;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.dto.LoginResp;
@@ -27,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 5) me():密码哈希永不回传。
  */
 @SpringBootTest
-class AuthServiceTest {
+class AuthServiceTest extends MySqlTestBase {
 
     @Autowired
     private AuthService authService;

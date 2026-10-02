@@ -1,5 +1,7 @@
 package com.eighthours.bovinbi.service;
 
+import com.eighthours.bovinbi.support.MySqlTestBase;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.eighthours.bovinbi.common.BizException;
 import com.eighthours.bovinbi.config.BovinProperties;
@@ -28,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 4) 数据集目录是全局共享读 —— 共享的是"表结构",隔离的是"行为数据"。
  */
 @SpringBootTest
-class UserIsolationTest {
+class UserIsolationTest extends MySqlTestBase {
 
     @Autowired
     private AuthService authService;

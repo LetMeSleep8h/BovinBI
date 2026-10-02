@@ -53,35 +53,15 @@ public class DataLoader implements ApplicationRunner {
     private final AuthService authService;
     private final JdbcTemplate dwhJdbcTemplate;
 
-    @org.springframework.beans.factory.annotation.Value("${spring.datasource.url:}")
-    private String platformUrl;
-
     @Override
     public void run(ApplicationArguments args) {
         seedMetadata();
         seedRealMilkDataset();
-        ensureH2Compatibility();
         dropLegacyDwhTables();
         ensureDwhTables();
         ensureRealDwhTables();
         loadDwhData();
         loadRealMilkData();
-    }
-
-    /**
-     * H2(MySQL 兼容模式)缺少 DATE_FORMAT 等方言函数:注册别名后,
-     * 生成的 MySQL SQL 在 H2 演示库与 MySQL 生产库零改动互通。
-     */
-    private void ensureH2Compatibility() {
-        if (!platformUrl.contains(":h2:")) {
-            return;
-        }
-        try {
-            dwhJdbcTemplate.execute("CREATE ALIAS IF NOT EXISTS DATE_FORMAT FOR 'com.eighthours.bovinbi.util.H2Functions.dateFormat'");
-            log.info("已为 H2 注册 MySQL 兼容函数别名: DATE_FORMAT");
-        } catch (Exception e) {
-            log.warn("注册 H2 函数别名失败(不影响启动): {}", e.getMessage());
-        }
     }
 
     // ---------------- 元数据种子 ----------------

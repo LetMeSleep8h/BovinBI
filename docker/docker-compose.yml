@@ -1,8 +1,8 @@
 version: "3.8"
 
-# BovinBI 生产形态演示:MySQL 8 承载平台元数据 + 分析数据仓(表名 dwh_ 前缀区分)
+# BovinBI 存储栈:MySQL 8 承载平台元数据 + 分析数据仓(表名 dwh_ 前缀区分)
 # 用法: docker compose -f docker/docker-compose.yml up -d
-# 之后以 --spring.profiles.active=mysql 启动后端
+# 后端默认即连本实例(localhost:3308),无需任何 profile;宿主端口避开 3306/3307 常见占用
 
 services:
   mysql:
@@ -10,7 +10,7 @@ services:
     container_name: bovinbi-mysql
     restart: unless-stopped
     ports:
-      - "3307:3306"
+      - "3308:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root123456
       MYSQL_DATABASE: bovin_bi

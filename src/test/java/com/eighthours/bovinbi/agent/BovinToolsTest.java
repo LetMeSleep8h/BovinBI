@@ -1,5 +1,7 @@
 package com.eighthours.bovinbi.agent;
 
+import com.eighthours.bovinbi.support.MySqlTestBase;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.entity.Dataset;
@@ -21,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 3) 预算强制:SQL 执行超限后返回拒绝话术,结果成功登记可按 SQL 原文命中。
  */
 @SpringBootTest
-class BovinToolsTest {
+class BovinToolsTest extends MySqlTestBase {
 
     @Autowired
     private BovinTools tools;

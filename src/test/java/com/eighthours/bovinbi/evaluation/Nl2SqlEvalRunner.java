@@ -7,6 +7,7 @@ import com.eighthours.bovinbi.entity.Dataset;
 import com.eighthours.bovinbi.init.DataLoader;
 import com.eighthours.bovinbi.mapper.DatasetMapper;
 import com.eighthours.bovinbi.service.Nl2SqlService;
+import com.eighthours.bovinbi.support.MySqlTestBase;
 import org.apache.commons.csv.CSVFormat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *   A/B 对比:同一评测集分别以 pipeline/agent 跑一遍,两次报告并排即是"Agent 化收益"的证据
  */
 @SpringBootTest
-class Nl2SqlEvalRunner {
+class Nl2SqlEvalRunner extends MySqlTestBase {
 
     @Autowired
     private Nl2SqlService nl2SqlService;

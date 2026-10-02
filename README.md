@@ -5,7 +5,7 @@
 >
 > **业务域:智慧牧场·奶牛养殖**(6 牧场 · 1,200 头泌乳牛 · 36,984 条挤奶记录,合成数据集,业务规律可审计、可复现),
 > **LLM 接入基于 LangChain4j**(OpenAI 兼容协议,DeepSeek / 通义千问 / GLM / OpenAI 一行配置切换),
-> **零安装即可演示**(默认 H2 + 离线规则引擎,无需 API Key),离线模式同样完整可用。
+> **一条命令起依赖**(docker compose 起 MySQL + pgvector),离线规则引擎模式无需 API Key,离线模式同样完整可用。
 
 ![tech](https://img.shields.io/badge/Java-21-blue) ![tech](https://img.shields.io/badge/Spring%20Boot-3.5.x-brightgreen) ![tech](https://img.shields.io/badge/LangChain4j-0.36.2-orange) ![tech](https://img.shields.io/badge/Vue-3.5-409eff)
 
@@ -52,14 +52,17 @@ java -jar target/BovinBI-1.0.0.jar        # 或 mvn spring-boot:run(默认离线
 | 后端 | Java 21 · Spring Boot 3.5 · MyBatis-Plus · JSqlParser · Caffeine · jjwt · springdoc |
 | LLM | **LangChain4j 0.36.2**(OpenAI 兼容协议),可切离线规则引擎 |
 | 前端 | Vue 3 · TypeScript · Vite · Element Plus · Pinia · Vue Router · ECharts · Axios |
-| 数据 | 智慧牧场·奶牛养殖合成数据集(星型模型);默认 H2,生产 MySQL 8 |
+| 数据 | MySQL 8(平台库+数仓)+ PostgreSQL/pgvector(意图识别向量库);智慧牧场合成数据集 + OWID/FAOSTAT 真实数据集 |
 
 ## 快速开始
 
-### 方式一:零安装演示(默认,离线)
+### 方式一:Docker Compose 一键起依赖(默认)
 ```bash
-mvn spring-boot:run          # 内置 H2 文件库 + 离线规则引擎,启动自动建表+装载数据
+docker compose -f docker/docker-compose.yml up -d   # MySQL 8 @ localhost:3308(+ pgvector @ 5432)
+mvn spring-boot:run                                  # 连 MySQL,启动自动建表+装载数据,离线规则引擎可用
 ```
+> 测试同样跑真实 MySQL:`mvn test` 用 Testcontainers 起一次性容器(需要本机 Docker;
+> colima 用户在 `~/.testcontainers.properties` 配 `docker.host=unix\:///$HOME/.colima/default/docker.sock`)。
 
 ### 方式二:接入真实大模型(LangChain4j)
 ```bash
@@ -67,12 +70,6 @@ export LLM_API_KEY=sk-xxx    # DeepSeek / 通义千问 / GLM 任一 OpenAI 兼�
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 LLM 任何一环失败自动进入降级链(自修复 → 规则兜底),演示永不中断。
-
-### 方式三:MySQL 生产形态
-```bash
-docker compose -f docker/docker-compose.yml up -d     # MySQL 8 @ localhost:3307
-java -jar target/BovinBI-1.0.0.jar --spring.profiles.active=mysql
-```
 
 ### 前端开发模式
 ```bash

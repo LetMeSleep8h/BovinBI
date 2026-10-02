@@ -1,5 +1,7 @@
 package com.eighthours.bovinbi.init;
 
+import com.eighthours.bovinbi.support.MySqlTestBase;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.entity.Dataset;
@@ -27,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 全程离线:不依赖 LLM,走 Schema 召回 → SQL 守护 → 只读执行器的确定性链路。
  */
 @SpringBootTest
-class RealMilkDatasetTest {
+class RealMilkDatasetTest extends MySqlTestBase {
 
     @Autowired
     private DatasetMapper datasetMapper;

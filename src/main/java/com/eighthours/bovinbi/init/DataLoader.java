@@ -35,6 +35,8 @@ import java.util.List;
  * 业务规律(品种/胎次/泌乳阶段/季节/牧场规模)全部可审计、可复现,详见 dataset/README.md。
  * 数据集二「全球牛奶产量」:Our World in Data 整理的 FAOSTAT 真实数据(1961 年起各国牛奶产量),
  * 用于真实数据回归 —— 合成数据验证链路,真实数据验证泛化。
+ * 数据集三「电商零售·巴西Olist」:Kaggle 公开的巴西电商真实订单(2016-2018),
+ * 已筛 delivered 订单并预 JOIN 成星型三表(客户/商品维 + 订单明细事实)。
  * 旧版「电商销售分析」数据集在启动时自动迁移清理(删旧表/旧元数据/关联会话)。
  */
 @Slf4j
@@ -44,6 +46,7 @@ public class DataLoader implements ApplicationRunner {
 
     public static final String DATASET_NAME = "牧场养殖分析";
     public static final String REAL_DATASET_NAME = "全球牛奶产量";
+    public static final String ECOM_DATASET_NAME = "电商零售·巴西Olist";
 
     private final UserMapper userMapper;
     private final DatasetMapper datasetMapper;
@@ -57,11 +60,14 @@ public class DataLoader implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         seedMetadata();
         seedRealMilkDataset();
+        seedEcommerceDataset();
         dropLegacyDwhTables();
         ensureDwhTables();
         ensureRealDwhTables();
+        ensureEcommerceDwhTables();
         loadDwhData();
         loadRealMilkData();
+        loadEcommerceData();
     }
 
     // ---------------- 元数据种子 ----------------
@@ -300,6 +306,124 @@ public class DataLoader implements ApplicationRunner {
         }
     }
 
+    /**
+     * 真实数据集三「电商零售·巴西Olist」(Kaggle 公开数据集):
+     * 独立幂等(按数据集名判重),老库启动也会补装。
+     */
+    private void seedEcommerceDataset() {
+        Dataset exists = datasetMapper.selectOne(new LambdaQueryWrapper<Dataset>()
+                .eq(Dataset::getName, ECOM_DATASET_NAME).last("LIMIT 1"));
+        if (exists != null) {
+            return;
+        }
+        Dataset ds = new Dataset();
+        ds.setName(ECOM_DATASET_NAME);
+        ds.setDescription("巴西电商 Olist 真实订单(2016-2018,Kaggle 公开数据集,仅保留 delivered 订单;"
+                + "金额单位雷亚尔BRL);JOIN关系: ecom_fact_order_item.product_id=ecom_dim_product.product_id, "
+                + "ecom_fact_order_item.customer_id=ecom_dim_customer.customer_id");
+        ds.setDwhTables("ecom_fact_order_item,ecom_dim_product,ecom_dim_customer");
+        ds.setStatus("ACTIVE");
+        datasetMapper.insert(ds);
+
+        DatasetField factProduct = field(ds.getId(), "ecom_fact_order_item", "product_id", "商品ID", "DIMENSION", "VARCHAR", "NONE",
+                "product_id", "仅 JOIN 用,不进分析");
+        factProduct.setIsHidden(1);
+        DatasetField dimProductId = field(ds.getId(), "ecom_dim_product", "product_id", "商品ID", "DIMENSION", "VARCHAR", "NONE",
+                "product_id", "仅 JOIN 用,不进分析");
+        dimProductId.setIsHidden(1);
+        DatasetField dimCustomerId = field(ds.getId(), "ecom_dim_customer", "customer_id", "客户ID", "DIMENSION", "VARCHAR", "NONE",
+                "customer_id", "仅 JOIN 用,不进分析");
+        dimCustomerId.setIsHidden(1);
+        List<DatasetField> fields = List.of(
+                field(ds.getId(), "ecom_fact_order_item", "order_date", "订单日期", "DIMENSION", "DATE", "NONE",
+                        "订单日期,日期,下单时间,月份,时间", "下单日期,粒度为天"),
+                field(ds.getId(), "ecom_fact_order_item", "price", "销售额", "METRIC", "DECIMAL", "SUM",
+                        "销售额,金额,营收,收入,GMV", "商品成交金额(雷亚尔BRL),按订单明细行加总"),
+                field(ds.getId(), "ecom_fact_order_item", "freight_value", "运费", "METRIC", "DECIMAL", "SUM",
+                        "运费,物流费,快递费", "单件商品运费(雷亚尔BRL)"),
+                field(ds.getId(), "ecom_fact_order_item", "order_id", "订单数", "METRIC", "VARCHAR", "COUNT_DISTINCT",
+                        "订单数,单量,订单量", "去重订单数(COUNT DISTINCT)"),
+                factProduct,
+                field(ds.getId(), "ecom_dim_product", "category", "商品类目", "DIMENSION", "VARCHAR", "NONE",
+                        "类目,品类,商品分类,产品类目,category", "英文类目(葡萄牙语原文已翻译),如 furniture/health_beauty"),
+                dimProductId,
+                field(ds.getId(), "ecom_dim_customer", "state", "客户州", "DIMENSION", "VARCHAR", "NONE",
+                        "州,客户州,地区,巴西州", "巴西州缩写,如 SP(圣保罗)/RJ(里约)/MG(米纳斯吉拉斯)"),
+                field(ds.getId(), "ecom_dim_customer", "city", "客户城市", "DIMENSION", "VARCHAR", "NONE",
+                        "城市,客户城市", "客户收货城市"),
+                dimCustomerId);
+        fields.forEach(fieldMapper::insert);
+        log.info("初始化真实数据集「{}」,字段数={}", ECOM_DATASET_NAME, fields.size());
+    }
+
+    /** 真实数据集三 DWH 表(电商星型:客户/商品维 + 订单明细事实) */
+    private void ensureEcommerceDwhTables() {
+        dwhJdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS ecom_dim_product (
+                  product_id VARCHAR(32) PRIMARY KEY,
+                  category VARCHAR(64))""");
+        dwhJdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS ecom_dim_customer (
+                  customer_id VARCHAR(32) PRIMARY KEY,
+                  city VARCHAR(64),
+                  state VARCHAR(8))""");
+        dwhJdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS ecom_fact_order_item (
+                  id BIGINT PRIMARY KEY,
+                  order_id VARCHAR(32),
+                  order_date DATE,
+                  product_id VARCHAR(32),
+                  customer_id VARCHAR(32),
+                  price DECIMAL(10,2),
+                  freight_value DECIMAL(10,2))""");
+        log.info("DWH 表已就绪(电商零售·巴西Olist·真实数据)");
+    }
+
+    /**
+     * 电商真实数据装载(幂等,空表才装):源 CSV 由 ETL 预处理 ——
+     * 仅 delivered 订单、订单时间并入明细、类目译为英文、只留分析所需列。
+     */
+    private void loadEcommerceData() {
+        if (dwhJdbcTemplate.queryForObject("SELECT COUNT(*) FROM ecom_fact_order_item", Integer.class) > 0) {
+            log.info("电商数据集 DWH 已有数据,跳过装载");
+            return;
+        }
+        long t0 = System.currentTimeMillis();
+        try {
+            // 维表全字符串列(product_id/customer_id 为十六进制串,不走 toTyped 的首列 Long 假设)
+            int dimProduct = loadPlainCsv("dataset/real/ecom/ecom_dim_product.csv",
+                    "INSERT INTO ecom_dim_product (product_id, category) VALUES (?,?)", 2);
+            int dimCustomer = loadPlainCsv("dataset/real/ecom/ecom_dim_customer.csv",
+                    "INSERT INTO ecom_dim_customer (customer_id, city, state) VALUES (?,?,?)", 3);
+            // 事实表带自增 id + 类型转换(日期/金额),单独走带类型的装载
+            List<Object[]> facts = new ArrayList<>();
+            long id = 0;
+            try (Reader reader = new InputStreamReader(
+                    new ClassPathResource("dataset/real/ecom/ecom_fact_order_item.csv").getInputStream(), StandardCharsets.UTF_8)) {
+                Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder()
+                        .setHeader("order_id", "order_date", "product_id", "customer_id", "price", "freight_value")
+                        .setSkipHeaderRecord(true).build().parse(reader);
+                for (CSVRecord r : records) {
+                    facts.add(new Object[]{++id, r.get(0), LocalDate.parse(r.get(1)), r.get(2), r.get(3),
+                            new java.math.BigDecimal(r.get(4)), new java.math.BigDecimal(r.get(5))});
+                    if (facts.size() >= 2000) {
+                        dwhJdbcTemplate.batchUpdate("INSERT INTO ecom_fact_order_item "
+                                + "(id, order_id, order_date, product_id, customer_id, price, freight_value) VALUES (?,?,?,?,?,?,?)", facts);
+                        facts.clear();
+                    }
+                }
+                if (!facts.isEmpty()) {
+                    dwhJdbcTemplate.batchUpdate("INSERT INTO ecom_fact_order_item "
+                            + "(id, order_id, order_date, product_id, customer_id, price, freight_value) VALUES (?,?,?,?,?,?,?)", facts);
+                }
+            }
+            log.info("电商真实数据装载完成: 商品 {} 行, 客户 {} 行, 订单明细 {} 行, 耗时 {}ms",
+                    dimProduct, dimCustomer, id, System.currentTimeMillis() - t0);
+        } catch (Exception e) {
+            log.error("电商数据集装载失败(不影响启动): {}", e.getMessage(), e);
+        }
+    }
+
     private int loadCsv(String path, String insertSql, int columns) throws Exception {
         List<Object[]> batch = new ArrayList<>();
         int total = 0;
@@ -311,6 +435,33 @@ public class DataLoader implements ApplicationRunner {
                 for (int i = 0; i < columns; i++) {
                     String v = r.get(i);
                     args[i] = toTyped(path, i, v);
+                }
+                batch.add(args);
+                if (batch.size() >= 2000) {
+                    dwhJdbcTemplate.batchUpdate(insertSql, batch);
+                    total += batch.size();
+                    batch.clear();
+                }
+            }
+            if (!batch.isEmpty()) {
+                dwhJdbcTemplate.batchUpdate(insertSql, batch);
+                total += batch.size();
+            }
+        }
+        return total;
+    }
+
+    /** 全字符串列的 CSV 装载(维表主键为字符串时用,绕开 toTyped 的类型假设) */
+    private int loadPlainCsv(String path, String insertSql, int columns) throws Exception {
+        List<Object[]> batch = new ArrayList<>();
+        int total = 0;
+        try (Reader reader = new InputStreamReader(new ClassPathResource(path).getInputStream(), StandardCharsets.UTF_8)) {
+            Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder()
+                    .setHeader().setSkipHeaderRecord(true).build().parse(reader);
+            for (CSVRecord r : records) {
+                Object[] args = new Object[columns];
+                for (int i = 0; i < columns; i++) {
+                    args[i] = r.get(i);
                 }
                 batch.add(args);
                 if (batch.size() >= 2000) {

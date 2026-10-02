@@ -126,3 +126,25 @@ CREATE TABLE IF NOT EXISTS dwh_fact_milk_prod (
     stat_year INT COMMENT '统计年份(1961 起)',
     milk_tonnes DECIMAL(14,1) COMMENT '当年牛奶总产量(吨)'
 ) COMMENT '各国牛奶年产量事实表(真实数据)';
+
+-- 数据集三「电商零售·巴西Olist」(Kaggle 公开真实数据,delivered 订单,金额 BRL)
+CREATE TABLE IF NOT EXISTS ecom_dim_product (
+    product_id VARCHAR(32) PRIMARY KEY COMMENT '商品ID',
+    category VARCHAR(64) COMMENT '英文类目(葡语已翻译)'
+) COMMENT '电商商品维度(真实数据)';
+
+CREATE TABLE IF NOT EXISTS ecom_dim_customer (
+    customer_id VARCHAR(32) PRIMARY KEY COMMENT '客户ID',
+    city VARCHAR(64) COMMENT '收货城市',
+    state VARCHAR(8) COMMENT '巴西州缩写(SP/RJ/MG...)'
+) COMMENT '电商客户维度(真实数据)';
+
+CREATE TABLE IF NOT EXISTS ecom_fact_order_item (
+    id BIGINT PRIMARY KEY,
+    order_id VARCHAR(32) COMMENT '订单号',
+    order_date DATE COMMENT '下单日期',
+    product_id VARCHAR(32) COMMENT 'JOIN ecom_dim_product.product_id',
+    customer_id VARCHAR(32) COMMENT 'JOIN ecom_dim_customer.customer_id',
+    price DECIMAL(10,2) COMMENT '商品成交金额(BRL)',
+    freight_value DECIMAL(10,2) COMMENT '单件运费(BRL)'
+) COMMENT '电商订单明细事实表(真实数据)';

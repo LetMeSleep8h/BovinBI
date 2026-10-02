@@ -6,8 +6,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Data
 @Component
@@ -21,6 +23,7 @@ public class BovinProperties {
     private Rag rag = new Rag();
     private Rag1 rag1 = new Rag1();
     private Gateway gateway = new Gateway();
+    private Mcp mcp = new Mcp();
 
     @Data
     public static class Chat {
@@ -157,6 +160,28 @@ public class BovinProperties {
         private double threshold = 0.55;
         /** 建库连接超时毫秒:PG 不可达时快速失败切进程内兜底,不拖慢启动 */
         private int connectionTimeoutMs = 5000;
+    }
+
+    /**
+     * MCP 工具统一管理:本地工具 + 远程 MCP server 的工具在 McpToolRegistry 合并成一份目录,
+     * LangChain4j 工具循环与对外 /mcp 端点共用同一执行入口(预算/守护/轨迹同一套)。
+     */
+    @Data
+    public static class Mcp {
+        /** 暴露 POST /mcp(JSON-RPC)把工具集发布为 MCP server,供外部 MCP 客户端接入 */
+        private boolean serverEnabled = false;
+        /** /mcp 鉴权 key(Bearer);留空 = 演示不鉴权 */
+        private Set<String> apiKeys = new LinkedHashSet<>();
+        /** 远程 MCP server 列表;其工具以 "服务名__工具名" 进入统一目录 */
+        private List<RemoteServer> servers = new ArrayList<>();
+
+        @Data
+        public static class RemoteServer {
+            private String name;
+            private String url;
+            private String apiKey = "";
+            private boolean enabled = true;
+        }
     }
 
     /** 轻量 LLM 网关:OpenAI 兼容入口,路由/failover/熔断/限流/计量/响应缓存 */

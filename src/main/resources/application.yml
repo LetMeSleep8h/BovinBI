@@ -125,6 +125,18 @@ bovin:
     url: ""
     username: ""
     password: ""
+  mcp:
+    # 工具统一按 MCP 协议管理:本地工具(getSchema/getColumnValues/executeSql)与远程
+    # MCP server 的工具在 McpToolRegistry 合并成一份目录;Agent 循环与对外 /mcp 端点
+    # 共用同一执行入口(预算/守护/轨迹同一套)
+    server-enabled: false   # true = 暴露 POST /mcp(JSON-RPC),外部 MCP 客户端可接入本系统工具
+    api-keys: []            # /mcp 鉴权 Bearer key 列表;留空 = 演示不鉴权
+    servers: []             # 远程 MCP server 列表,工具以 "服务名__工具名" 进入统一目录
+    # servers:
+    #   - name: weather
+    #     url: http://localhost:9090/mcp
+    #     api-key: ""
+    #     enabled: true
 
 logging:
   level:

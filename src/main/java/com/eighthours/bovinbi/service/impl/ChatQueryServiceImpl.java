@@ -19,6 +19,7 @@ import com.eighthours.bovinbi.mapper.ChatSessionMapper;
 import com.eighthours.bovinbi.mapper.DatasetFieldMapper;
 import com.eighthours.bovinbi.mapper.DatasetMapper;
 import com.eighthours.bovinbi.mapper.QueryLogMapper;
+import com.eighthours.bovinbi.mcp.McpToolRegistry;
 import com.eighthours.bovinbi.request.ChatExecuteReq;
 import com.eighthours.bovinbi.request.ChatParseReq;
 import com.eighthours.bovinbi.response.ChatParseResp;
@@ -112,11 +113,13 @@ public class ChatQueryServiceImpl implements ChatQueryService {
     private final JdbcTemplate dwhJdbcTemplate;
     private final BovinProperties props;
     private final ObjectMapper objectMapper;
+    private final McpToolRegistry mcpRegistry;
 
     public ChatQueryServiceImpl(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper,
                                 QueryLogMapper queryLogMapper, DatasetMapper datasetMapper,
                                 DatasetFieldMapper fieldMapper, JdbcTemplate dwhJdbcTemplate,
-                                BovinProperties props, ObjectMapper objectMapper) {
+                                BovinProperties props, ObjectMapper objectMapper,
+                                McpToolRegistry mcpRegistry) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.queryLogMapper = queryLogMapper;
@@ -125,6 +128,7 @@ public class ChatQueryServiceImpl implements ChatQueryService {
         this.dwhJdbcTemplate = dwhJdbcTemplate;
         this.props = props;
         this.objectMapper = objectMapper;
+        this.mcpRegistry = mcpRegistry;
     }
 
     // ==================== 状态区:parse 暂存与语义缓存(进程内) ====================
@@ -399,12 +403,12 @@ public class ChatQueryServiceImpl implements ChatQueryService {
                     agentTried = true;
                     try {
                         final BovinProperties.Agent acfg = props.getChat().getAgent();
-                        final String schemaTextFinal = schemaText;
-                        final Set<String> whitelistFinal = whitelist;
-                        // 工具对象:匿名类,实例字段直接绑定"本次请求"的状态(白名单/预算/结果登记/轨迹),
-                        // 与原版 BovinTools 的 ThreadLocal 方案相比,匿名类捕获天然请求隔离,不需要清理
+                        // 工具对象:薄适配层 —— 预算/轨迹/结果登记仍是本类局部状态(匿名类捕获天然请求隔离),
+                        // 真实实现统一走 McpToolRegistry(与 /mcp 端点、外部 MCP 客户端同一套工具);
+                        // datasetId 随参数显式传递,不依赖 ThreadLocal 上下文
+                        final Long datasetIdFinal = datasetId;
                         var tools = new Object() {
-                            /** 已成功执行的 SQL 登记:归一化(模型原文/守护后) → 守护后 SQL,供最终回填校验 */
+                            /** 已成功执行的 SQL 登记:归一化模型原文 → SQL 原文(identity),供最终回填校验 */
                             final Map<String, String> executedSql = new LinkedHashMap<>();
                             final List<AgentTrace.ToolCall> trace = new ArrayList<>();
                             int seq, totalCalls, sqlCalls, schemaCalls, valueCalls;
@@ -413,41 +417,27 @@ public class ChatQueryServiceImpl implements ChatQueryService {
                             public String getSchema() {
                                 if (++totalCalls > acfg.getMaxToolCalls()) return "工具调用总预算已耗尽,请立即基于已有信息输出最终 JSON 回答";
                                 if (++schemaCalls > acfg.getMaxSchemaCalls()) return "getSchema 调用已达上限,请基于已获取的 Schema 继续";
-                                trace.add(new AgentTrace.ToolCall(++seq, "getSchema", "", true, 0, "返回 Schema(" + schemaTextFinal.length() + " 字符)"));
-                                return schemaTextFinal;
+                                long t0t = System.currentTimeMillis();
+                                String out = mcpRegistry.call("getSchema", Map.of("datasetId", datasetIdFinal)).text();
+                                trace.add(new AgentTrace.ToolCall(++seq, "getSchema", "", true,
+                                        (int) (System.currentTimeMillis() - t0t), "返回 Schema(" + out.length() + " 字符)"));
+                                return out;
                             }
 
                             @Tool("查询某个维度字段在库中的真实可选值(如牧场名/品种/地区),用于生成准确的 WHERE 条件,防止编造维度值。table 与 column 必须来自 Schema。")
                             public String getColumnValues(String tableName, String columnName, String keyword) {
                                 if (++totalCalls > acfg.getMaxToolCalls()) return "工具调用总预算已耗尽,请立即基于已有信息输出最终 JSON 回答";
                                 if (++valueCalls > acfg.getMaxValueCalls()) return "getColumnValues 调用已达上限";
-                                // 标识符白名单校验:只接受简单标识符,从源头杜绝标识符注入
-                                if (tableName == null || columnName == null
-                                        || !tableName.matches("^[A-Za-z_][A-Za-z0-9_]*$")
-                                        || !columnName.matches("^[A-Za-z_][A-Za-z0-9_]*$")) {
-                                    return "参数非法:table/column 必须是简单标识符,且来自 Schema";
-                                }
-                                if (!whitelistFinal.contains(tableName.toLowerCase())) {
-                                    return "表不在白名单: " + tableName;
-                                }
-                                String kw = keyword == null ? "" : keyword.replace("'", "").trim();
-                                String vsSql = "SELECT DISTINCT " + columnName + " AS v FROM " + tableName
-                                        + (kw.isBlank() ? "" : " WHERE " + columnName + " LIKE '%" + kw + "%'")
-                                        + " ORDER BY 1 LIMIT 20";
                                 long t0t = System.currentTimeMillis();
-                                try {
-                                    List<Map<String, Object>> rows = dwhJdbcTemplate.queryForList(vsSql);
-                                    String values = rows.stream().map(r -> String.valueOf(r.get("v")))
-                                            .reduce((a, b) -> a + " | " + b).orElse("(无数据)");
-                                    trace.add(new AgentTrace.ToolCall(++seq, "getColumnValues",
-                                            tableName + "." + columnName, true, (int) (System.currentTimeMillis() - t0t),
-                                            "返回 " + rows.size() + " 个可选值"));
-                                    return tableName + "." + columnName + " 可选值(最多 20 个): " + values;
-                                } catch (Exception e) {
-                                    trace.add(new AgentTrace.ToolCall(++seq, "getColumnValues",
-                                            tableName + "." + columnName, false, (int) (System.currentTimeMillis() - t0t), brief(e.getMessage())));
-                                    return "维度值查询失败: " + e.getMessage();
-                                }
+                                String out = mcpRegistry.call("getColumnValues", Map.of(
+                                        "datasetId", datasetIdFinal,
+                                        "tableName", tableName == null ? "" : tableName,
+                                        "columnName", columnName == null ? "" : columnName,
+                                        "keyword", keyword == null ? "" : keyword)).text();
+                                boolean ok = !out.startsWith("参数非法") && !out.startsWith("维度值查询失败");
+                                trace.add(new AgentTrace.ToolCall(++seq, "getColumnValues",
+                                        tableName + "." + columnName, ok, (int) (System.currentTimeMillis() - t0t), brief(out)));
+                                return out;
                             }
 
                             @Tool("执行一条只读 SELECT 查询并返回结果预览(列名+前若干行)。SQL 会经过安全守护:仅单条 SELECT/表白名单/强制 LIMIT。执行失败会返回报错原因,请阅读报错修正后重试(注意 SQL 执行次数有上限)。")
@@ -455,99 +445,27 @@ public class ChatQueryServiceImpl implements ChatQueryService {
                                 if (++totalCalls > acfg.getMaxToolCalls()) return "工具调用总预算已耗尽,请立即基于已有信息输出最终 JSON 回答";
                                 if (++sqlCalls > acfg.getMaxSqlExecutions()) return "SQL 执行次数已达上限(" + acfg.getMaxSqlExecutions() + " 次),请基于已有结果输出最终 JSON 回答";
                                 long t0t = System.currentTimeMillis();
-                                // ---- 工具内建守护(与第 7 步 b 同规则,当场再写一遍:提示词是建议,工具是法律) ----
-                                String guarded;
-                                try {
-                                    String s = sqlParam == null ? "" : sqlParam.trim();
-                                    while (s.endsWith(";")) s = s.substring(0, s.length() - 1).trim();
-                                    s = s.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?m)^\\s*--.*$", " ").trim();
-                                    if (s.isEmpty()) return "守护拒绝: SQL 为空";
-                                    if (s.contains(";")) return "守护拒绝: 包含多条语句";
-                                    net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(s);
-                                    if (!(stmt instanceof Select sel)) return "守护拒绝: 仅允许 SELECT 查询";
-                                    Set<String> used = new TablesNamesFinder<Void>().getTables(stmt);
-                                    for (String t : used) {
-                                        String lt = t.replace("`", "").replace("\"", "");
-                                        if (lt.contains(".")) lt = lt.substring(lt.lastIndexOf('.') + 1);
-                                        if (!whitelistFinal.contains(lt.toLowerCase())) {
-                                            return "守护拒绝: SQL 引用了未授权的表 [" + t + "],只使用 Schema 中的表";
-                                        }
-                                    }
-                                    if (sel instanceof PlainSelect ps) {
-                                        if (ps.getLimit() == null) {
-                                            Limit lim = new Limit();
-                                            lim.setRowCount(new LongValue(props.getChat().getMaxRows()));
-                                            ps.setLimit(lim);
-                                        }
-                                        guarded = ps.toString();
-                                    } else {
-                                        guarded = s.toLowerCase().matches("(?s).*\\blimit\\s+\\d+.*") ? s : s + " LIMIT " + props.getChat().getMaxRows();
-                                    }
-                                } catch (Exception ge) {
-                                    trace.add(new AgentTrace.ToolCall(++seq, "executeSql", brief(sqlParam), false, (int) (System.currentTimeMillis() - t0t), brief(ge.getMessage())));
-                                    return "守护拒绝: " + ge.getMessage() + "\n请按硬约束改写后重试(仅单条 SELECT,只使用 Schema 中的表和列)";
+                                var res = mcpRegistry.call("executeSql", Map.of(
+                                        "datasetId", datasetIdFinal, "sql", sqlParam == null ? "" : sqlParam));
+                                String out = res.text();
+                                if (!res.isError()) {
+                                    // 该 SQL 已在注册中心的工具内过守护并成功执行;登记模型原文(identity),
+                                    // 最终回填直接执行该原文(execute() 的 setMaxRows 兜底行数上限)
+                                    executedSql.put(norm(sqlParam), sqlParam);
                                 }
-                                // ---- 执行 + 预览(错误即数据:报错以文本回喂模型,驱动其自修复) ----
-                                try {
-                                    ExecResult r = run(guarded);
-                                    String norm1 = sqlParam.toLowerCase().replaceAll("\\s+", " ").trim();
-                                    String norm2 = guarded.toLowerCase().replaceAll("\\s+", " ").trim();
-                                    executedSql.put(norm1, guarded);
-                                    executedSql.put(norm2, guarded);
-                                    trace.add(new AgentTrace.ToolCall(++seq, "executeSql", brief(sqlParam), true, (int) (System.currentTimeMillis() - t0t), r.rowCount() + " 行结果"));
-                                    StringBuilder pv = new StringBuilder("执行成功:共 ").append(r.rowCount()).append(" 行\n列: ");
-                                    pv.append(r.columns().stream().map(ColInfo::name).reduce((a, b) -> a + " | " + b).orElse("")).append('\n');
-                                    r.rows().stream().limit(acfg.getPreviewRows()).forEach(row ->
-                                            pv.append(row.values().stream().map(v -> v == null ? "" : String.valueOf(v))
-                                                    .reduce((a, b) -> a + " | " + b).orElse("")).append('\n'));
-                                    return pv.toString();
-                                } catch (Exception e) {
-                                    trace.add(new AgentTrace.ToolCall(++seq, "executeSql", brief(sqlParam), false, (int) (System.currentTimeMillis() - t0t), brief(e.getMessage())));
-                                    return "执行失败: " + root(e) + "\n请修正 SQL 后重试(常见修法:列名以 Schema 为准;聚合条件放 HAVING 而非 WHERE;别名引用改为重复表达式)";
-                                }
+                                trace.add(new AgentTrace.ToolCall(++seq, "executeSql", brief(sqlParam), !res.isError(),
+                                        (int) (System.currentTimeMillis() - t0t), brief(out)));
+                                return out;
                             }
 
-                            /** 匿名类内部的执行器:Statement 级超时 + maxRows,值归一化(与 execute() 第 3 步同规则) */
-                            private ExecResult run(String sql) {
-                                return dwhJdbcTemplate.execute((ConnectionCallback<ExecResult>) conn -> {
-                                    try (Statement st = conn.createStatement()) {
-                                        st.setQueryTimeout(props.getChat().getQueryTimeoutSeconds());
-                                        st.setMaxRows(props.getChat().getMaxRows());
-                                        try (ResultSet rs = st.executeQuery(sql)) {
-                                            ResultSetMetaData md = rs.getMetaData();
-                                            int n = md.getColumnCount();
-                                            List<ColInfo> cols = new ArrayList<>();
-                                            for (int i = 1; i <= n; i++) cols.add(new ColInfo(md.getColumnLabel(i), md.getColumnTypeName(i)));
-                                            List<LinkedHashMap<String, Object>> rows = new ArrayList<>();
-                                            while (rs.next()) {
-                                                LinkedHashMap<String, Object> row = new LinkedHashMap<>();
-                                                for (int i = 1; i <= n; i++) row.put(md.getColumnLabel(i), normalize(rs.getObject(i)));
-                                                rows.add(row);
-                                            }
-                                            return new ExecResult(cols, rows, rows.size(), 0);
-                                        }
-                                    }
-                                });
-                            }
-
-                            private Object normalize(Object v) {
-                                if (v instanceof LocalDateTime ldt) return ldt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                                if (v instanceof LocalDate d) return d.toString();
-                                if (v instanceof byte[] b) return "[binary " + b.length + "B]";
-                                if (v instanceof BigDecimal bd) return bd.doubleValue();
-                                return v;
+                            private String norm(String s) {
+                                return s == null ? "" : s.toLowerCase().replaceAll("\\s+", " ").trim();
                             }
 
                             private String brief(String s) {
                                 if (s == null) return "";
                                 String one = s.replaceAll("\\s+", " ").trim();
                                 return one.length() <= 120 ? one : one.substring(0, 120) + "…";
-                            }
-
-                            private String root(Throwable e) {
-                                Throwable t = e;
-                                while (t.getCause() != null) t = t.getCause();
-                                return t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
                             }
                         };
 

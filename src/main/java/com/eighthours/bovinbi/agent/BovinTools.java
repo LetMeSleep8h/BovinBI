@@ -58,4 +58,12 @@ public class BovinTools {
         args.put("sql", sql);
         return registry.call("executeSql", args).text();
     }
+
+    /** 只读导出(注册中心里的 exportReport);批量导入是写操作,刻意不暴露给模型 —— Agent 循环保持只读 */
+    @Tool("把一条查询结果导出为 CSV 报表文本(首行列名),权限与 executeSql 相同(守护/白名单/强制 LIMIT)。")
+    public String exportReport(String sql) {
+        Map<String, Object> args = new HashMap<>();
+        args.put("sql", sql);
+        return registry.call("exportReport", args).text();
+    }
 }

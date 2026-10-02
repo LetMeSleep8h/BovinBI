@@ -1,0 +1,16 @@
+# 构建上下文瘦身:镜像构建只需要 pom.xml + src
+target
+data
+.git
+.idea
+frontend
+docs
+benchmark
+eval
+eval-runs
+eval-report.md
+scripts
+docker
+!docker/maven-settings.xml
+node_modules
+*.md

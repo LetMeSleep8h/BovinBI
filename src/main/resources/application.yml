@@ -7,10 +7,10 @@ spring:
   datasource:
     # MySQL 8(平台库 + 数仓合一;docker/docker-compose.yml up -d 即得本实例,宿主机映射 3308)
     # 生产拆分:bovin.dwh.url 指向独立只读数仓,平台库/分析库分离
-    url: jdbc:mysql://localhost:3308/bovin_bi?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    url: ${BOVIN_MYSQL_URL:jdbc:mysql://localhost:3308/bovin_bi?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: bovin
-    password: bovin123
+    username: ${BOVIN_MYSQL_USER:bovin}
+    password: ${BOVIN_MYSQL_PASSWORD:bovin123}
   sql:
     init:
       # 幂等建表(CREATE TABLE IF NOT EXISTS);docker-compose 首次初始化与本脚本二选一皆可
@@ -84,9 +84,9 @@ bovin:
     # 向量库唯一实现是 PostgreSQL+pgvector(compose 已带实例 @ localhost:5433,避开本机已装的 5432);
     # PG 不可达 → 打 WARN 后 Bean 缺席,闲聊分流回落关键词版,主链路不受影响
     enabled: true
-    url: jdbc:postgresql://localhost:5433/bovin_rag
-    username: postgres
-    password: bovin123
+    url: ${BOVIN_PG_URL:jdbc:postgresql://localhost:5433/bovin_rag}
+    username: ${BOVIN_PG_USER:postgres}
+    password: ${BOVIN_PG_PASSWORD:bovin123}
     table: rag1_intent_example
     top-k: 3            # 召回相似问例数
     threshold: 0.55     # 余弦相似度阈值(hash 实测:改写>=0.65,噪声<=0.45),低于则不判意图(UNKNOWN)

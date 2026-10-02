@@ -1,9 +1,9 @@
 version: "3.8"
 
-# BovinBI 存储栈:MySQL 8 承载平台元数据 + 分析数据仓(表名 dwh_ 前缀区分);
-# PostgreSQL+pgvector 承载 rag1 意图识别向量库(宿主端口避开本机已装的 5432)
-# 用法: docker compose -f docker/docker-compose.yml up -d
-# 后端默认即连本实例(MySQL@3308 / pgvector@5433),无需任何 profile;宿主端口避开 3306/3307 常见占用
+# BovinBI 存储栈 + 后端:MySQL 8(平台库+数仓)+ PostgreSQL/pgvector(意图向量库)+ 后端(含前端静态页)
+# 一键启停:./docker/start-all.sh  |  ./docker/stop-all.sh
+# 后端容器内经服务名互连(mysql:3306 / pgvector:5432);本机直连用宿主端口(MySQL@3308 / pgvector@5433,
+# 避开本机已装的 3306/5432)
 
 services:
   mysql:
@@ -22,6 +22,11 @@ services:
       - bovinbi-mysql-data:/var/lib/mysql
       - ../sql/mysql-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ubovin", "-pbovin123"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   # rag1 意图识别向量库(pgvector 镜像自带 vector 扩展;建表/建 HNSW 索引由 PgVectorStore 幂等完成)
   pgvector:
@@ -37,6 +42,34 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - bovinbi-pgvector-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bovin_rag"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # 后端(构建自仓库根 Dockerfile;启动自动建表+装载两个数据集+灌 rag1 语料)
+  backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: bovinbi-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      BOVIN_MYSQL_URL: jdbc:mysql://mysql:3306/bovin_bi?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+      BOVIN_MYSQL_USER: bovin
+      BOVIN_MYSQL_PASSWORD: bovin123
+      BOVIN_PG_URL: jdbc:postgresql://pgvector:5432/bovin_rag
+      BOVIN_PG_USER: postgres
+      BOVIN_PG_PASSWORD: bovin123
+      TZ: Asia/Shanghai
+    depends_on:
+      mysql:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
 
 volumes:
   bovinbi-mysql-data:

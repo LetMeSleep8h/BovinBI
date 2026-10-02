@@ -56,10 +56,17 @@ java -jar target/BovinBI-1.0.0.jar        # 或 mvn spring-boot:run(默认离线
 
 ## 快速开始
 
-### 方式一:Docker Compose 一键起依赖(默认)
+### 方式一:一键启停全栈(默认,推荐演示用)
 ```bash
-docker compose -f docker/docker-compose.yml up -d   # MySQL 8 @ localhost:3308(+ pgvector @ 5433)
-mvn spring-boot:run                                  # 连 MySQL,启动自动建表+装载数据,离线规则引擎可用
+./docker/start-all.sh    # MySQL + pgvector + 后端全栈,健康检查通过才返回(首次构建约几分钟)
+./docker/stop-all.sh     # 一键全停;--purge 连数据卷一起清空
+# 就绪后: http://localhost:8080 (admin/bovin123),再次启动仅需 ~10 秒(数据卷保留)
+```
+
+### 方式一 b:本机开发(只起存储,后端跑在 IDE/Maven)
+```bash
+docker compose -f docker/docker-compose.yml up -d mysql pgvector   # MySQL@3308 + pgvector@5433
+mvn spring-boot:run
 ```
 > 测试同样跑真实 MySQL:`mvn test` 用 Testcontainers 起一次性容器(需要本机 Docker;
 > colima 用户在 `~/.testcontainers.properties` 配 `docker.host=unix\:///$HOME/.colima/default/docker.sock`)。

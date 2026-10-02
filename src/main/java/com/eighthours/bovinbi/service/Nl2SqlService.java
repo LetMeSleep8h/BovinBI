@@ -9,6 +9,7 @@ import com.eighthours.bovinbi.dto.ChartSpec;
 import com.eighthours.bovinbi.dto.ExecResult;
 import com.eighthours.bovinbi.service.rag.EmbeddingClient;
 import com.eighthours.bovinbi.service.rag1.Rag1IntentService;
+import com.eighthours.bovinbi.trace.TraceHub;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -58,21 +59,30 @@ public class Nl2SqlService {
 
     /** @param sessionId 会话 id:agent 模式下作为记忆锚点(多轮追问);pipeline 模式不使用 */
     public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
+        return answer(datasetId, question, sessionId, -1L);
+    }
+
+    /** @param queryId 实时工作流的流 id:>0 时各阶段经 TraceHub 推送给前端(见 ChatController /ask/stream) */
+    public AnswerPayload answer(Long datasetId, String question, Long sessionId, long queryId) {
         long t0 = System.currentTimeMillis();
 
         // 步骤 0:意图分流 —— rag1 可用时向量召回判闲聊(覆盖更多口语问法),关键词版兜底;
         // 两者都以"无数据信号词"为前提,防止把带问候的正常取数误伤进闲聊
+        TraceHub.publish(queryId, "意图识别", "判断问题类型(闲聊/取数)", true);
         Rag1IntentService rag1 = rag1Intent.getIfAvailable();
         if (rag1 != null) {
             if (rag1.recognize(question).chitChat() && !chitChatHandler.hasDataSignal(question)) {
+                TraceHub.publish(queryId, "闲聊直答", "非取数问题,免 LLM 直接回答", true);
                 return chitChatHandler.answer(question);
             }
         } else if (chitChatHandler.isChitChat(question)) {
+            TraceHub.publish(queryId, "闲聊直答", "非取数问题,免 LLM 直接回答", true);
             return chitChatHandler.answer(question);
         }
 
         // 步骤 1:时间解析(确定性规则,半开区间;null = 无时间语义)
         TimeRange timeRange = timeRangeParser.parse(question);
+        TraceHub.publish(queryId, "时间解析", timeRange == null ? "未识别到时间范围" : "时间范围: " + timeRange.label(), true);
 
         // 步骤 2:语义缓存 —— 归一化问题命中则跳过生成与执行(对 agent 模式同样生效,命中即省全部 token)
         String cacheKey = semanticCache.key(datasetId, question, timeRange);
@@ -91,6 +101,7 @@ public class Nl2SqlService {
             }
         }
         if (cached != null) {
+            TraceHub.publish(queryId, "缓存命中", "语义缓存命中,跳过生成与执行", true);
             return cacheHit(cached, t0, cacheEngine);
         }
 
@@ -134,11 +145,12 @@ public class Nl2SqlService {
 
         // 引擎分流 2:agent 模式把 3~5 步(召回/生成/守护/执行/修复)交给模型编排
         if ("agent".equalsIgnoreCase(props.getChat().getEngine())) {
+            TraceHub.publish(queryId, "引擎执行", "Agent 工具循环(模型自主编排)", true);
             AgentOrchestrator orch = agentOrchestrator.getIfAvailable();
             if (orch == null) {
                 log.warn("engine=agent 但 AgentOrchestrator 不可用,回退固定管线");
             } else {
-                AnswerPayload p = orch.answer(datasetId, question, sessionId);
+                AnswerPayload p = orch.answer(datasetId, question, sessionId, queryId);
                 if (!p.isFallback()) {
                     // 步骤 6(图表推荐)与缓存写入对外壳保持一致:两种引擎产出同构
                     p.setChart(chartAdvisor.advise(question, p.getColumns(), p.getRows()));
@@ -149,6 +161,7 @@ public class Nl2SqlService {
         }
 
         // 步骤 3:Schema 召回 —— 紧凑 Schema 文本 + 表白名单(一次查询带出;bovin.rag.enabled=true 时为混合召回)
+        TraceHub.publish(queryId, "Schema召回", "按问题召回相关字段与表白名单", true);
         SchemaRetriever.LinkedSchema schema = schemaRetriever.retrieve(datasetId, question);
         SqlGenContext ctx = new SqlGenContext(question, timeRange, schema.schemaText(), schema.whitelist());
 

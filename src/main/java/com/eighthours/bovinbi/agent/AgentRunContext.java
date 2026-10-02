@@ -1,5 +1,7 @@
 package com.eighthours.bovinbi.agent;
 
+import com.eighthours.bovinbi.trace.TraceHub;
+
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.dto.ExecResult;
 
@@ -25,6 +27,8 @@ public class AgentRunContext {
     private final Long datasetId;
     private final String question;
     private final BovinProperties.Agent cfg;
+    /** 实时工作流流 id:>=0 时每次工具调用推送给前端(见 TraceHub) */
+    private final long queryId;
 
     private int seq;
     private int totalCalls;
@@ -45,9 +49,14 @@ public class AgentRunContext {
     }
 
     public AgentRunContext(Long datasetId, String question, BovinProperties.Agent cfg) {
+        this(datasetId, question, cfg, -1L);
+    }
+
+    public AgentRunContext(Long datasetId, String question, BovinProperties.Agent cfg, long queryId) {
         this.datasetId = datasetId;
         this.question = question;
         this.cfg = cfg;
+        this.queryId = queryId;
     }
 
     /**
@@ -81,6 +90,8 @@ public class AgentRunContext {
         if (trace.size() < 64) {
             trace.add(call);
         }
+        // 实时流:工具调用即推送(queryId<0 的非流式调用零开销)
+        TraceHub.publish(queryId, call.tool(), call.args(), call.ok());
     }
 
     /** 双键登记:模型原始 SQL 与守护重排后的 SQL 都指向同一份结果,最终回填任一形式都能命中 */

@@ -14,6 +14,7 @@ import com.eighthours.bovinbi.mapper.ChatSessionMapper;
 import com.eighthours.bovinbi.mapper.DatasetMapper;
 import com.eighthours.bovinbi.mapper.QueryLogMapper;
 import com.eighthours.bovinbi.security.UserContext;
+import com.eighthours.bovinbi.trace.TraceHub;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -78,6 +79,16 @@ public class ChatService {
 
     /** 核心问答:持久化两条消息 + 审计日志,返回助手消息 */
     public MessageVO ask(Long sessionId, String question) {
+        return runAsk(sessionId, question, -1L);
+    }
+
+    /** 流式问答:阶段经 TraceHub 实时推送(见 ChatController /ask/stream),最终消息随 done 事件返回 */
+    public MessageVO askStream(Long sessionId, String question, long queryId) {
+        return runAsk(sessionId, question, queryId);
+    }
+
+    private MessageVO runAsk(Long sessionId, String question, long queryId) {
+        TraceHub.publish(queryId, "会话校验", "校验会话归属与数据集", true);
         ChatSession session = mustOwn(sessionId);
         if (session.getTitle() == null || session.getTitle().isBlank()) {
             ChatSession upd = new ChatSession();
@@ -95,6 +106,7 @@ public class ChatService {
         long t0 = System.currentTimeMillis();
         String engine = null;
         String finalSql = null;
+        TraceHub.publish(queryId, "记录问题", "用户消息落库", true);
         QueryLog queryLog = new QueryLog();
         queryLog.setUserId(UserContext.uid());
         queryLog.setDatasetId(session.getDatasetId());
@@ -102,7 +114,7 @@ public class ChatService {
 
         AnswerPayload payload;
         try {
-            payload = nl2SqlService.answer(session.getDatasetId(), question, sessionId);
+            payload = nl2SqlService.answer(session.getDatasetId(), question, sessionId, queryId);
             engine = payload.getEngine();
             finalSql = payload.getSql();
         } catch (Exception e) {
@@ -113,6 +125,8 @@ public class ChatService {
             engine = "FAILED";
         }
 
+        TraceHub.publish(queryId, "查询执行", "引擎: " + (engine == null ? "-" : engine),
+                !payload.isFallback());
         String content = payload.isFallback()
                 ? payload.getFallbackHint()
                 : (payload.getExplanation() == null || payload.getExplanation().isBlank()

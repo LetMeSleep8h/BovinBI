@@ -50,8 +50,13 @@ public class AgentOrchestrator {
 
     /** @param sessionId 会话 id(agent 记忆锚点);为 null(如评测单轮跑批)时生成一次性 id,避免题目间记忆串扰 */
     public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
+        return answer(datasetId, question, sessionId, -1L);
+    }
+
+    /** @param queryId 实时工作流流 id,工具循环的每次调用经 TraceHub 实时推送 */
+    public AnswerPayload answer(Long datasetId, String question, Long sessionId, long queryId) {
         long t0 = System.currentTimeMillis();
-        AgentRunContext ctx = new AgentRunContext(datasetId, question, props.getChat().getAgent());
+        AgentRunContext ctx = new AgentRunContext(datasetId, question, props.getChat().getAgent(), queryId);
 
         BovinAgent agent = agentProvider.getIfAvailable();
         if (agent == null) {

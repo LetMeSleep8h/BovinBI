@@ -3,7 +3,7 @@ import { nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Delete, Promotion } from '@element-plus/icons-vue'
 import {
-  ask, createSession, deleteSession, listDatasets, listMessages, listSessions
+  ask, askStream, createSession, deleteSession, listDatasets, listMessages, listSessions
 } from '@/api'
 import type { ChatMessage, ChatSession, Dataset } from '@/api/types'
 import AnswerCard from '@/components/AnswerCard.vue'
@@ -14,6 +14,8 @@ const messages = ref<ChatMessage[]>([])
 const question = ref('')
 const sending = ref(false)
 const datasets = ref<Dataset[]>([])
+/** 实时工作流:流式问答过程中收到的 AI 工作步骤 */
+const liveSteps = ref<{ seq: number; name: string; detail: string; ok: boolean }[]>([])
 
 const RECOMMEND = [
   '近12个月每月产奶量趋势',
@@ -69,11 +71,25 @@ async function send(q?: string) {
   } as ChatMessage)
   await scrollBottom()
   sending.value = true
+  liveSteps.value = []
   try {
-    const bot = await ask(currentId.value!, text)
+    // 流式:每一步 AI 工作内容实时上屏,结束拿到完整助手消息
+    const bot = await askStream(currentId.value!, text, (s) => {
+      liveSteps.value.push(s)
+      scrollBottom()
+    })
     messages.value.push(bot)
+  } catch (e) {
+    // 流式失败降级回一次性问答,演示不中断
+    try {
+      const bot = await ask(currentId.value!, text)
+      messages.value.push(bot)
+    } catch (ignore) {
+      // 两条路都失败:静默(全局拦截器已提示)
+    }
   } finally {
     sending.value = false
+    liveSteps.value = []
     await scrollBottom()
   }
 }
@@ -130,8 +146,17 @@ onMounted(async () => {
 
         <div v-if="sending" class="msg-row">
           <el-card style="max-width: 880px; width: 100%">
-            <el-skeleton :rows="3" animated />
-            <div class="muted" style="margin-top: 8px">正在理解问题 → 召回Schema → 生成SQL → 执行查询…</div>
+            <div class="live-steps">
+              <div v-for="s in liveSteps" :key="s.seq" class="live-step">
+                <span class="dot" :class="s.ok ? 'ok' : 'fail'"></span>
+                <b>{{ s.name }}</b>
+                <span class="muted">{{ s.detail }}</span>
+              </div>
+            </div>
+            <el-skeleton v-if="liveSteps.length === 0" :rows="3" animated />
+            <div class="muted" style="margin-top: 8px">
+              {{ liveSteps.length ? 'AI 正在工作,实时步骤如上…' : '正在理解问题 → 召回Schema → 生成SQL → 执行查询…' }}
+            </div>
           </el-card>
         </div>
       </div>
@@ -149,3 +174,36 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.live-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.live-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.live-step .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.live-step .dot.ok {
+  background: #67c23a;
+}
+.live-step .dot.fail {
+  background: #f56c6c;
+}
+.live-step b {
+  min-width: 72px;
+}
+.live-step .muted {
+  color: #909399;
+}
+</style>

@@ -52,6 +52,35 @@ public class ChatController {
         return ApiResponse.ok(chatService.ask(req.sessionId(), req.question()));
     }
 
+    /**
+     * 流式问答(SSE):实时推送 AI 工作内容(意图识别/Schema召回/工具调用/执行…),
+     * 最后以 done 事件携带完整助手消息。前端用 fetch 解析 event stream(带鉴权头)。
+     */
+    @PostMapping(value = "/ask/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter askStream(@Valid @RequestBody ChatReq req) {
+        long queryId = System.nanoTime();
+        com.eighthours.bovinbi.trace.TraceHub.open(queryId);
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
+                com.eighthours.bovinbi.trace.TraceHub.subscribe(queryId);
+        // 身份是 ThreadLocal:捕获请求线程的 uid/角色,带进异步执行线程(会话校验/审计都依赖它)
+        final Long uid = com.eighthours.bovinbi.security.UserContext.uid();
+        final String uname = com.eighthours.bovinbi.security.UserContext.username();
+        final String role = com.eighthours.bovinbi.security.UserContext.role();
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            com.eighthours.bovinbi.security.UserContext.set(uid, uname, role);
+            try {
+                MessageVO bot = chatService.askStream(req.sessionId(), req.question(), queryId);
+                com.eighthours.bovinbi.trace.TraceHub.finish(queryId, "done", bot);
+            } catch (Exception e) {
+                com.eighthours.bovinbi.trace.TraceHub.finish(queryId, "error",
+                        java.util.Map.of("message", e.getMessage() == null ? "查询失败" : e.getMessage()));
+            } finally {
+                com.eighthours.bovinbi.security.UserContext.clear();
+            }
+        });
+        return emitter;
+    }
+
     /** 两段式:理解问题并生成/守护 SQL,不查库 */
     @PostMapping("/parse")
     public ApiResponse<ChatParseResp> parse(@RequestBody ChatParseReq req) {

@@ -18,6 +18,54 @@ export const listMessages = (sessionId: number) => http.get<never, any[]>(`/chat
 export const ask = (sessionId: number, question: string) =>
   http.post<never, any>('/chat/ask', { sessionId, question })
 
+/**
+ * 流式问答(SSE):实时回调每一步 AI 工作内容(意图识别/Schema召回/工具调用…),
+ * 结束时 resolve 最终助手消息;失败 reject(调用方可降级回 ask)。
+ */
+export async function askStream(
+  sessionId: number,
+  question: string,
+  onStep: (step: { seq: number; name: string; detail: string; ok: boolean }) => void
+): Promise<any> {
+  const token = localStorage.getItem('bovin_token')
+  const resp = await fetch('/api/chat/ask/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({ sessionId, question })
+  })
+  if (!resp.ok || !resp.body) throw new Error(`stream HTTP ${resp.status}`)
+  const reader = resp.body.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  let final: any = null
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    let idx: number
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const block = buf.slice(0, idx)
+      buf = buf.slice(idx + 2)
+      let event = 'message'
+      let data = ''
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) data += line.slice(5).trim()
+      }
+      if (!data) continue
+      const payload = JSON.parse(data)
+      if (event === 'step') onStep(payload)
+      else if (event === 'done') final = payload
+      else if (event === 'error') throw new Error(payload.message || '查询失败')
+    }
+  }
+  if (!final) throw new Error('stream ended without final message')
+  return final
+}
+
 /** 两段式 text2sql:先 parse(生成/守护 SQL,不查库),再 execute(取回并执行) */
 export const parseQuery = (sessionId: number, question: string) =>
   http.post<never, any>('/chat/parse', { sessionId, question })

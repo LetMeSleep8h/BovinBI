@@ -76,9 +76,10 @@ public class BovinProperties {
         /** Agent 循环内单次 LLM 调用超时(秒):独立于 bovin.llm.timeout-seconds ——
          *  工具循环一次问答含多次 LLM 往返,单次等待必须更短,失败才降级得快 */
         private int llmTimeoutSeconds = 30;
-        /** Agent 循环内单次 LLM 调用的 HTTP 重试:0=不重试 —— 工具循环本身具备
-         *  "报错回喂、模型自修"的语义,HTTP 层重试只会在多轮循环上叠加耗时 */
-        private int llmMaxRetries = 0;
+        /** Agent 循环内单次 LLM 调用的 HTTP 重试:慢端点(如 DeepSeek 高峰)
+         *  单轮偶发超时很常见,1 次重试显著提升整体成功率;
+         *  与"报错回喂自修"不冲突 —— 重试的是"没得到响应"的轮次,不是失败轮 */
+        private int llmMaxRetries = 1;
     }
 
     @Data

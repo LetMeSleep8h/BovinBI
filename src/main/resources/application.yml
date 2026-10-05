@@ -125,8 +125,8 @@ bovin:
     temperature: 0.0
     timeout-seconds: ${BOVIN_LLM_TIMEOUT_SECONDS:90}
     max-retries: 2
-    log-requests: false
-    log-responses: false
+    log-requests: ${BOVIN_LLM_LOG_REQUESTS:false}
+    log-responses: ${BOVIN_LLM_LOG_RESPONSES:false}
   dwh:
     # 留空 = 复用主数据源(演示);生产建议独立只读数据源
     url: ""

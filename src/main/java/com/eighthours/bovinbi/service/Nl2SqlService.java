@@ -279,7 +279,7 @@ public class Nl2SqlService {
     private AnswerPayload fallbackPayload(long t0, String engine) {
         AnswerPayload p = new AnswerPayload();
         p.setFallback(true);
-        p.setFallbackHint("抱歉,我暂时理解不了这个问题。可以试试:每月产奶量趋势 / 产奶量Top10牧场 / 上个月各品种产奶量占比");
+        p.setFallbackHint("这个问题我暂时没理解。可以试试更明确的问法(如:销售额Top10商品类目);电商数据集离线下请切换「Python Agent」引擎,或配置 LLM API Key 后使用 Java 引擎");
         p.setEngine(engine);
         p.setTookMs(System.currentTimeMillis() - t0);
         return p;

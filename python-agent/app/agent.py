@@ -148,8 +148,9 @@ def _rule_generate(question, fields, schema_text):
 
     table = metric["table"]
 
-    # 维度在其它表:有 JOIN 边则联表(事实表 t0 + 维度表 t1),没有则退化为不分组
-    from_sql = table
+    # 事实表统一别名 t0(单表也带,列引用一律 t0./t1. 前缀);维度在其它表时
+    # 有 JOIN 边则联表(维表 t1),没有则退化为不分组
+    from_sql = f"{table} t0"
     dim_ref = None
     if dim and dim["table"] != table:
         edge = _join_path(table, dim["table"], edges)
@@ -281,7 +282,7 @@ def _parse_preview(preview):
         if line.startswith("列:"):
             names = [c.strip() for c in line[2:].split("|")]
             columns = [{"name": n, "type": "VARCHAR"} for n in names if n]
-        elif not columns or any(k in line for k in ("守护拒绝", "执行失败")):
+        elif not columns or any(k in line for k in ("守护拒绝", "执行失败", "行:", "行:")) or re.match(r"^前 \d+ 行", line):
             continue
         else:
             vals = [v.strip() for v in line.split("|")]

@@ -36,7 +36,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AgentOrchestrator {
 
-    private static final String FALLBACK_HINT = "抱歉,我暂时理解不了这个问题。可以试试:每月产奶量趋势 / 产奶量Top10牧场 / 上个月各品种产奶量占比";
+    private static final String FALLBACK_HINT = "这个问题我暂时没理解。可以试试更明确的问法(如:销售额Top10商品类目);电商数据集离线下请切换「Python Agent」引擎,或配置 LLM API Key 后使用 Java 引擎";
 
     private final ObjectProvider<BovinAgent> agentProvider;
     private final TimeRangeParser timeRangeParser;

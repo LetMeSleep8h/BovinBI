@@ -37,14 +37,21 @@ class AnswerResp(BaseModel):
 
 @app.get("/health")
 def health():
-    # 探活顺带 ping 底座 MCP:一眼看出跨语言链路是否通
+    # 探活:框架信息 + 底座 MCP 连通性(一眼看出跨语言链路是否通)
+    import anyio
+
+    async def _tools():
+        return await agent._mcp_client().get_tools()
+
     try:
-        tools = mcp_client.list_tools()
-        return {"status": "UP", "javaMcp": "UP", "tools": len(tools),
-                "llm": "configured" if agent.LLM_API_KEY else "offline-rule"}
+        tools = anyio.run(_tools)
+        return {"status": "UP", "framework": "fastapi+langchain+langgraph",
+                "javaMcp": "UP", "tools": [t.name for t in tools],
+                "llm": f"configured:{agent.LLM_MODEL}" if agent.LLM_API_KEY else "offline"}
     except Exception as e:  # noqa: BLE001
-        return {"status": "UP", "javaMcp": "DOWN", "error": str(e)[:200],
-                "llm": "configured" if agent.LLM_API_KEY else "offline-rule"}
+        return {"status": "UP", "framework": "fastapi+langchain+langgraph",
+                "javaMcp": "DOWN", "error": str(e)[:200],
+                "llm": f"configured:{agent.LLM_MODEL}" if agent.LLM_API_KEY else "offline"}
 
 
 @app.post("/v1/answer", response_model=AnswerResp)

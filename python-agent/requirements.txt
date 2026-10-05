@@ -1,4 +1,13 @@
 fastapi==0.115.6
 uvicorn==0.34.0
 httpx==0.28.1
-pydantic==2.10.4
+pydantic>=2.10.4,<3
+# LLM/Agent 框架栈:LangChain 生态 + LangGraph 工作流(工具经 MCP 回环 Java 底座)
+# 版本组合实测兼容(langgraph 0.6+ 需要 langchain-core>=0.4 与 langchain 0.3 冲突;
+# mcp SDK 2.x 移除了 adapters 0.1.x 依赖的 mcp.shared.session):
+#   langchain 0.3.x / langchain-openai 0.3.x / langgraph 0.5.x / mcp-adapters 0.1.x / mcp 1.9.x
+langchain>=0.3,<0.4
+langchain-openai>=0.3,<0.4
+langgraph==0.5.4
+langchain-mcp-adapters==0.1.14
+mcp==1.10.0

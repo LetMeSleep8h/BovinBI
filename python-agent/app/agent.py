@@ -1,330 +1,180 @@
-"""Python Agent 本体:两种模式,同一个契约。
+"""LangGraph 工作流:意图路由 → ReAct Agent(MCP 工具)→ 组装回答。
 
-- LLM 模式(配置了 LLM_API_KEY):调 OpenAI 兼容接口,基于 MCP 取回的 Schema
-  生成 SQL,再经 MCP executeSql 执行 —— 工具循环的最小闭环;
-- 离线模式(无 Key):内置规则(agent 版),按 Schema 字段元数据 + 数据集描述里的
-  JOIN 关系拼 SQL(星型一层 JOIN),同样经 MCP 执行 —— 零外部依赖可演示。
-
-安全设计:Python 只做"智力"(选表/拼 SQL),能不能跑永远由 Java 底座的
-SqlGuard 决定(表白名单/仅 SELECT/强制 LIMIT),与 Java 引擎同一套边界。
+图结构(StateGraph):
+    START → intent(意图判定,LLM 优先) ─┬─ chitchat(直答)
+                                        └─ agent(ReAct 循环,工具=MCP) → END
+                                        └─ fallback(离线提示)
+    - agent 节点用 create_react_agent:模型自主决定调哪些 MCP 工具、循环至产出答案,
+      框架管理消息状态与工具调用循环(不再手写循环);
+    - 工具经 langchain-mcp-adapters 直连 Java 底座 /mcp(streamable-http),
+      守护/表白名单仍在 Java 侧 —— 安全边界不因框架重构外流;
+    - 节点异常 → fallback 兜底回答(错误进状态,不向上抛断链)。
 """
 
 import json
 import os
 import re
 import time
+from typing import Annotated, Literal, Optional, TypedDict
 
-from . import mcp_client
+import anyio
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, START, END
+from langgraph.prebuilt import create_react_agent
 
+JAVA_MCP_URL = os.environ.get("JAVA_MCP_URL", "http://localhost:8080/mcp")
+MCP_API_KEY = os.environ.get("MCP_API_KEY", "bovin-mcp-demo")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")
 
-SYSTEM_PROMPT = """#Role: 你是数仓 NL2SQL 生成 Agent。只负责生成 SQL,执行由底座负责。
-#Rules:
-1. 只输出 JSON:{"sql": "...", "explanation": "一句话中文解释"}。
-2. 只允许一条 SELECT;表和列必须来自 #Schema,禁止编造。
-3. 结果末尾必须有 LIMIT;输出列用中文别名。"""
+INTENT_SYSTEM = (
+    "你是问答系统的意图判别器。判断用户输入是闲聊还是取数:\n"
+    "- 闲聊:问候、道谢、告别、询问你的身份/能力/用法(如 你能干什么/你是谁/谢谢/在么),"
+    "或任何不需要查询数据仓库就能回答的话;\n"
+    "- 取数:任何需要查数据才能回答的问题(哪怕写得含糊,如 销售额情况/看看牧场)。\n"
+    "只输出一个词:CHIT_CHAT 或 QUERY。"
+)
+
+AGENT_SYSTEM = (
+    "你是 BovinBI 数据分析 Agent,通过工具回答数仓业务问题。\n"
+    "规则:1) 先调 getSchema 了解表结构再写 SQL(可传问题关键词);\n"
+    "2) SQL 只用 Schema 中的表和列,末尾必须有 LIMIT,输出列用中文别名;\n"
+    "3) 用 executeSql 执行拿到结果后,在最后一行输出 JSON:"
+    '{"sql": "<已成功执行的SQL>", "explanation": "一句话中文结论"};\n'
+    "4) 用户的问题不是数据问题时,直接简短回答,不调用工具。"
+)
+
+CHIT_CHAT_ANSWER = (
+    "我是 BovinBI 的 Python Agent(LangGraph 驱动):把一句自然语言变成 SQL 并执行出图表,"
+    "支持趋势/TopN/占比/分组/单值指标。试试:销售额Top10商品类目 / 各客户州销售额。"
+)
 
 
-CHIT_CHAT_PATTERNS = [
-    "你是谁", "你叫什么", "你能做什么", "你能干什么", "你会做什么", "你会干什么",
-    "你有什么功能", "有什么功能", "能干什么", "会什么", "你是干嘛的",
-    "你好", "您好", "哈喽", "hello", "hi", "在吗", "谢谢", "多谢", "感谢", "再见", "拜拜",
-]
+def _llm() -> Optional[ChatOpenAI]:
+    """配了 Key 才有 LLM 节点;离线时图退化为闲聊关键词 + 兜底提示(仍走 MCP 健康检查路径)"""
+    if not LLM_API_KEY:
+        return None
+    return ChatOpenAI(
+        base_url=LLM_BASE_URL.rstrip("/"),
+        api_key=LLM_API_KEY,
+        model=LLM_MODEL,
+        temperature=0.0,
+        timeout=90,
+        max_retries=1,
+    )
 
 
-def is_chit_chat(question: str) -> bool:
-    """能力询问/问候/道谢等非取数输入(Java 侧意图分流之后这里只是兜底)"""
-    q = question.strip().lower()
-    if len(q) > 40:
-        return False
-    return any(p in q for p in CHIT_CHAT_PATTERNS)
+def _mcp_client() -> MultiServerMCPClient:
+    """Java 底座 MCP 客户端(streamable-http);工具加载后交给 ReAct Agent 绑定"""
+    return MultiServerMCPClient({
+        "bovinbi": {
+            "url": JAVA_MCP_URL,
+            "transport": "streamable_http",
+            "headers": {"Authorization": f"Bearer {MCP_API_KEY}"},
+        }
+    })
 
 
-def chit_chat_answer(question: str) -> dict:
-    if any(k in question for k in ("谢谢", "多谢", "感谢")):
+class AgentState(TypedDict):
+    """图的状态:问题 + 引擎结果字段(与 Java AnswerPayload 对齐)+ 步骤轨迹"""
+    question: str
+    dataset_id: int
+    sql: Optional[str]
+    explanation: Optional[str]
+    columns: list
+    rows: list
+    row_count: int
+    fallback: bool
+    fallback_hint: Optional[str]
+    steps: Annotated[list, lambda a, b: (a or []) + (b or [])]
+
+
+# ---------------- 节点 ----------------
+
+def intent_node(state: AgentState) -> dict:
+    """意图判定:LLM 一个词的判决;失败/离线退回关键词"""
+    q = state["question"].strip()
+    llm = _llm()
+    if llm:
+        try:
+            verdict = llm.invoke([SystemMessage(content=INTENT_SYSTEM),
+                                  HumanMessage(content=q)]).content.strip().upper()
+            if "CHIT_CHAT" in verdict:
+                return {"steps": [{"name": "意图(LLM)", "detail": "闲聊 → 直答", "ok": True}]}
+            if "QUERY" in verdict:
+                return {"steps": [{"name": "意图(LLM)", "detail": "取数 → 进入 Agent", "ok": True}]}
+        except Exception as e:  # noqa: BLE001
+            return {"steps": [{"name": "意图(LLM失败,退关键词)", "detail": str(e)[:120], "ok": False}]}
+    hit = _keyword_chitchat(q)
+    return {"steps": [{"name": "意图(关键词)", "detail": "闲聊" if hit else "取数", "ok": True}]}
+
+
+_CHIT_WORDS = ("你是谁 你叫什么 你能做什么 你能干什么 你会做什么 你会干什么 你有什么功能 有什么功能 "
+               "能干什么 会什么 你是干嘛的 你好 您好 哈喽 hello hi 在吗 谢谢 多谢 感谢 再见 拜拜")
+
+
+def _keyword_chitchat(q: str) -> bool:
+    return len(q.strip()) <= 40 and any(p in q.lower() for p in _CHIT_WORDS.split())
+
+
+def route_after_intent(state: AgentState) -> Literal["chitchat", "agent", "fallback"]:
+    """路由:按意图节点的判定 + LLM 可用性分流"""
+    if not _llm():
+        steps = state.get("steps") or []
+        if steps and "闲聊" in (steps[-1].get("detail") or ""):
+            return "chitchat"
+        return "fallback"  # 离线且是取数:无 LLM 无法规划,兜底提示
+    steps = state.get("steps") or []
+    detail = (steps[-1].get("detail") or "") if steps else ""
+    if "闲聊" in detail:
+        return "chitchat"
+    return "agent"
+
+
+def chitchat_node(state: AgentState) -> dict:
+    q = state["question"]
+    if any(k in q for k in ("谢谢", "多谢", "感谢")):
         text = "不客气!还想看什么数据,直接问就行。"
-    elif any(k in question for k in ("再见", "拜拜")):
+    elif any(k in q for k in ("再见", "拜拜")):
         text = "再见!数据随时在这里等你。"
     else:
-        text = ("我是 BovinBI 的 Python Agent:把一句自然语言变成 SQL 并执行出图表,"
-                "支持趋势/TopN/占比/分组/单值指标。试试:销售额Top10商品类目。")
-    return {
-        "sql": None, "explanation": text, "columns": [], "rows": [], "rowCount": 0,
-        "fallback": False, "fallbackHint": None, "engine": "PYTHON",
-        "steps": [{"name": "闲聊直答", "detail": "非取数问题,不生成 SQL", "ok": True}],
-        "tookMs": 1,
-    }
+        text = CHIT_CHAT_ANSWER
+    return {"explanation": text, "row_count": 0, "fallback": False,
+            "steps": [{"name": "闲聊直答", "detail": "非取数问题,不生成 SQL", "ok": True}]}
 
 
-def answer(dataset_id: int, question: str) -> dict:
-    """一次问答:返回与 Java AnswerPayload 同构的字典(子集)+ steps 轨迹"""
-    if is_chit_chat(question):
-        return chit_chat_answer(question)
-    steps = []
-
-    def step(name, detail, ok=True):
-        steps.append({"name": name, "detail": str(detail)[:200], "ok": ok})
-
-    started = time.time()
-    try:
-        step("getSchema(MCP)", "从 Java 底座召回表结构与字段口径")
-        schema_text = mcp_client.get_schema(dataset_id, question)
-        fields = _parse_fields(schema_text)
-
-        sql, explanation = _generate(question, schema_text, fields, step)
-
-        step("executeSql(MCP)", sql[:120])
-        preview = mcp_client.execute_sql(dataset_id, sql)
-
-        columns, rows = _parse_preview(preview)
-        return {
-            "sql": sql,
-            "explanation": explanation,
-            "columns": columns,
-            "rows": rows,
-            "rowCount": len(rows),
-            "fallback": False,
-            "fallbackHint": None,
-            "engine": "PYTHON",
-            "steps": steps,
-            "tookMs": int((time.time() - started) * 1000),
-        }
-    except mcp_client.McpError as e:
-        # 工具层失败(守护拒绝/执行报错):错误即数据,交给上层降级链
-        step("MCP失败", str(e)[:200], False)
-        return _fallback(f"Python Agent 执行失败: {e}", steps, started)
-    except Exception as e:  # noqa: BLE001
-        step("异常", str(e)[:200], False)
-        return _fallback(f"Python Agent 异常: {e}", steps, started)
-
-
-def _generate(question, schema_text, fields, step):
-    if LLM_API_KEY:
-        step("LLM生成", f"{LLM_MODEL} 按 Schema 生成 SQL")
-        return _llm_generate(question, schema_text)
-    step("规则生成", "离线模式:按字段元数据 + JOIN 关系拼装 SQL(配置 LLM_API_KEY 可升级为 LLM 生成)")
-    return _rule_generate(question, fields, schema_text)
-
-
-# ---------------- LLM 模式 ----------------
-
-def _llm_generate(question, schema_text) -> tuple[str, str]:
-    import httpx
-
-    resp = httpx.post(
-        f"{LLM_BASE_URL.rstrip('/')}/chat/completions",
-        headers={"Authorization": f"Bearer {LLM_API_KEY}"},
-        json={
-            "model": LLM_MODEL,
-            "temperature": 0.0,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"#Schema:\n{schema_text}\n\n#Question: {question}"},
-            ],
-        },
-        timeout=40,
-    )
-    resp.raise_for_status()
-    raw = resp.json()["choices"][0]["message"]["content"]
-    m = re.search(r"\{.*}", raw, re.DOTALL)
+def _extract_json(text: str) -> Optional[dict]:
+    m = re.search(r"\{.*\}", text or "", re.DOTALL)
     if not m:
-        raise RuntimeError("LLM 未返回 JSON")
-    data = json.loads(m.group(0))
-    sql = (data.get("sql") or "").strip()
-    if not sql:
-        raise RuntimeError("LLM 未返回 SQL")
-    return sql, data.get("explanation", "")
-
-
-# ---------------- 离线规则模式(星型 JOIN) ----------------
-
-_TIME_PATTERNS = [
-    (re.compile(r"近(\d{1,3})天|最近(\d{1,3})天"), "days"),
-    (re.compile(r"近(\d{1,2})个月|最近(\d{1,2})个月"), "months"),
-]
-
-
-def _parse_joins(schema_text):
-    """从数据集描述解析 JOIN 关系:`表.列=表.列` 列表(星型一层,覆盖演示星型)"""
-    m = re.search(r"JOIN关系[:：]\s*([^\n]+)", schema_text)
-    if not m:
-        return []
-    edges = []
-    for full in re.finditer(r"(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)", m.group(1)):
-        t1, c1, t2, c2 = full.groups()
-        edges.append({"t1": t1, "c1": c1, "t2": t2, "c2": c2})
-    return edges
-
-
-def _join_path(table, dim_table, edges):
-    """找 table 与 dim_table 的直连边,返回 (事实表外键, 维表主键);无则 None"""
-    for e in edges:
-        if e["t1"] == table and e["t2"] == dim_table:
-            return e["c1"], e["c2"]
-        if e["t2"] == table and e["t1"] == dim_table:
-            return e["c2"], e["c1"]
-    return None
-
-
-def _rule_generate(question, fields, schema_text):
-    q = question.lower()
-    metric = _match_field(fields, "METRIC", q) or _first(fields, "METRIC")
-    dim = _match_field(fields, "DIMENSION", q)
-    date_field = next((f for f in fields if f["field_type"] == "DIMENSION"
-                       and f["data_type"] == "DATE"), None)
-    edges = _parse_joins(schema_text)
-
-    if metric is None:
-        raise RuntimeError("Schema 中未找到指标字段,离线规则无法生成")
-
-    table = metric["table"]
-
-    # 事实表统一别名 t0(单表也带,列引用一律 t0./t1. 前缀);维度在其它表时
-    # 有 JOIN 边则联表(维表 t1),没有则退化为不分组
-    from_sql = f"{table} t0"
-    dim_ref = None
-    if dim and dim["table"] != table:
-        edge = _join_path(table, dim["table"], edges)
-        if edge:
-            fk, pk = edge
-            from_sql = f"{table} t0 JOIN {dim['table']} t1 ON t0.{fk} = t1.{pk}"
-            dim_ref = f"t1.{dim['column']}"
-        else:
-            dim = None
-    elif dim:
-        dim_ref = f"t0.{dim['column']}"
-
-    # 聚合表达式中的列统一带表前缀:ROUND(SUM(t0.price)) / COUNT(DISTINCT t0.order_id)
-    expr = _agg_expr(metric).replace(metric["column"], f"t0.{metric['column']}")
-
-    topn = None
-    m = re.search(r"(?:top\s*(\d{1,2}))|(?:前\s*(\d{1,2}))", q)
-    if m:
-        topn = int(m.group(1) or m.group(2))
-    trend = any(k in q for k in ("趋势", "每月", "按月", "走势"))
-    ratio = any(k in q for k in ("占比", "份额", "构成", "分布"))
-
-    selects, group = [], None
-    if trend and date_field and date_field["table"] == table:
-        selects.append((f"DATE_FORMAT(t0.{date_field['column']}, '%Y-%m')", "月份"))
-        group = "月份"
-    elif dim and dim_ref:
-        selects.append((dim_ref, dim["alias"]))
-        group = dim["alias"]
-    selects.append((expr, metric["alias"]))
-
-    where = _time_where(question, date_field, table, q)
-    sql = f"SELECT {', '.join(f'{c} AS {a}' for c, a in selects)} FROM {from_sql}"
-    if where:
-        sql += f" WHERE {where}"
-    if group:
-        sql += f" GROUP BY {group}"
-    order = f"{metric['alias']} DESC" if (topn or ratio) else (group or metric["alias"])
-    sql += f" ORDER BY {order} LIMIT {topn if topn else 1000}"
-
-    label = ("Top%d %s" % (topn, dim["alias"])) if topn and dim else (
-        f"按{group}{metric['alias']}" if group else f"{metric['alias']}")
-    return sql, f"[Python 离线规则] {label}"
-
-
-def _time_where(question, date_field, table, q):
-    if date_field is None:
         return None
-    col = f"t0.{date_field['column']}" if date_field["table"] == table else date_field["column"]
-    for pat, kind in _TIME_PATTERNS:
-        m = pat.search(question)
-        if m:
-            n = int(m.group(1) or m.group(2))
-            if kind == "days":
-                return f"{col} >= DATE_SUB(CURDATE(), INTERVAL {n - 1} DAY) AND {col} < DATE_ADD(CURDATE(), INTERVAL 1 DAY)"
-            return f"{col} >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL {n - 1} MONTH) AND {col} < DATE_ADD(CURDATE(), INTERVAL 1 DAY)"
-    if "今年" in q:
-        return f"{col} >= DATE_FORMAT(CURDATE(), '%Y-01-01') AND {col} < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 YEAR), '%Y-01-01')"
-    if "去年" in q:
-        return f"{col} >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 YEAR), '%Y-01-01') AND {col} < DATE_FORMAT(CURDATE(), '%Y-01-01')"
-    if "上个月" in q or "上月" in q:
-        return f"{col} >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01') AND {col} < DATE_FORMAT(CURDATE(), '%Y-%m-01')"
-    return None
+    try:
+        return json.loads(m.group(0))
+    except Exception:  # noqa: BLE001
+        return None
 
 
-def _match_field(fields, ftype, q):
-    """词面匹配字段:别名/同义词出现在问题里(长词优先)"""
-    cands = [f for f in fields if f["field_type"] == ftype]
-    for f in sorted(cands, key=lambda x: -len(x["alias"])):
-        if f["alias"] and f["alias"] in q:
-            return f
-        for syn in f["synonyms"]:
-            if syn and syn in q:
-                return f
-    return None
-
-
-def _first(fields, ftype):
-    return next((f for f in fields if f["field_type"] == ftype), None)
-
-
-def _agg_expr(metric):
-    agg = metric["agg_type"]
-    col = metric["column"]
-    if agg == "SUM":
-        return f"ROUND(SUM({col}), 2)"
-    if agg == "AVG":
-        return f"ROUND(AVG({col}), 2)"
-    if agg == "COUNT_DISTINCT":
-        return f"COUNT(DISTINCT {col})"
-    return col
-
-
-# ---------------- Schema/预览解析 ----------------
-
-_FIELD_LINE = re.compile(r"^(\w+)\.(\w+)\s+(\S+)\s+业务名:(\S+?)(?:[((].*)?$")
-
-
-def _parse_fields(schema_text):
-    """解析 Java getSchema 的紧凑文本行:`table.col TYPE 业务名:alias(指标,聚合:SUM)`"""
-    fields = []
-    for line in schema_text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("【"):
-            continue
-        m = _FIELD_LINE.match(line)
-        if not m:
-            continue
-        table, column, dtype, alias = m.group(1), m.group(2), m.group(3), m.group(4)
-        ftype = "METRIC" if ("指标" in line) else "DIMENSION"
-        agg = "SUM"
-        am = re.search(r"聚合方式:(\w+)", line)
-        if am:
-            agg = am.group(1)
-        synonyms = [s for s in re.findall(r"同义词:\[(.*?)\]", line) for s in s.split(",")]
-        fields.append({
-            "table": table, "column": column, "alias": alias,
-            "field_type": ftype, "agg_type": agg, "data_type": dtype,
-            "synonyms": [s.strip() for s in synonyms if s.strip()],
-        })
-    return fields
-
-
-def _parse_preview(preview):
-    """解析 executeSql 预览文本 → (columns, rows);只取预览行(上限由守护 LIMIT 兜底)"""
-    lines = [l for l in preview.splitlines() if l.strip()]
+def _parse_preview(text: str) -> tuple[list, list]:
+    """解析 executeSql 工具返回的预览文本 → (columns, rows)"""
     columns, rows = [], []
-    for line in lines:
+    for line in (text or "").splitlines():
+        line = line.strip()
         if line.startswith("列:"):
             names = [c.strip() for c in line[2:].split("|")]
             columns = [{"name": n, "type": "VARCHAR"} for n in names if n]
-        elif not columns or any(k in line for k in ("守护拒绝", "执行失败", "行:", "行:")) or re.match(r"^前 \d+ 行", line):
+        elif not columns or any(k in line for k in ("守护拒绝", "执行失败", "行:")) or re.match(r"^前 \d+ 行", line):
             continue
         else:
             vals = [v.strip() for v in line.split("|")]
             if len(vals) == len(columns):
-                rows.append({c["name"]: _num(v) for c, v in zip(columns, vals)})
+                rows.append({c["name"]: _num(vals[i]) for i, c in enumerate(columns)})
     return columns, rows
 
 
-def _num(v):
+def _num(v: str):
+    """'1233131.72' → float;纯数字转数值,图表推荐才能识别数值列"""
     try:
         return int(v)
     except ValueError:
@@ -334,9 +184,116 @@ def _num(v):
             return v
 
 
-def _fallback(hint, steps, started):
+def _run_async(coro):
+    """ReAct 循环是 async(LangGraph/MCP 均异步);FastAPI 的线程池同步端点里用 anyio 桥接"""
+    return anyio.run(coro)
+
+
+def agent_node(state: AgentState) -> dict:
+    """ReAct Agent 节点:LLM + MCP 工具循环(框架驱动),从最终消息解析 SQL 与结论"""
+    llm = _llm()
+    started = time.time()
+
+    async def _run():
+        client = _mcp_client()
+        tools = await client.get_tools()
+        agent = create_react_agent(llm, tools, prompt=AGENT_SYSTEM)
+        user_msg = (
+            f"数据集ID: {state['dataset_id']}\n问题: {state['question']}\n"
+            '回答要求:通过 executeSql 成功执行后,最后一行输出 JSON '
+            '{"sql": "...", "explanation": "一句话中文结论"}'
+        )
+        return await agent.ainvoke(
+            {"messages": [HumanMessage(content=user_msg)]},
+            config={"recursion_limit": 30},
+        )
+
+    result = _run_async(_run)
+    messages = result.get("messages", [])
+    tool_calls = sum(1 for m in messages if isinstance(m, AIMessage) and m.tool_calls)
+    steps = [{"name": "ReAct循环", "detail": f"{len(messages)} 条消息 / 工具调用 {tool_calls} 次 / "
+              f"{int((time.time() - started) * 1000)}ms", "ok": True}]
+
+    final_sql, final_exp = None, ""
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and m.content and not m.tool_calls:
+            content = m.content if isinstance(m.content, str) else str(m.content)
+            data = _extract_json(content)
+            if data and data.get("sql"):
+                final_sql, final_exp = data["sql"].strip(), data.get("explanation", "")
+                break
+            if not final_exp:
+                final_exp = content[:200]
+    if not final_sql:
+        return {"fallback": True, "fallback_hint": "Agent 未能产出 SQL(可换个问法重试)",
+                "explanation": final_exp, "steps": steps}
+
+    # 生成的 SQL 交底座执行(与循环同一 MCP 通道;守护在 Java 侧)
+    async def _exec():
+        client = _mcp_client()
+        tools = await client.get_tools()
+        ex = next(t for t in tools if t.name == "executeSql")
+        return await ex.ainvoke({"datasetId": state["dataset_id"], "sql": final_sql})
+
+    preview = _run_async(_exec)
+    columns, rows = _parse_preview(preview)
+    ok = "执行成功" in (preview or "")
+    steps.append({"name": "executeSql(MCP)", "detail": (preview or "")[:120], "ok": ok})
+    if not ok:
+        return {"fallback": True, "fallback_hint": f"执行失败: {(preview or '')[:150]}",
+                "sql": final_sql, "steps": steps}
+    return {"sql": final_sql, "explanation": final_exp, "columns": columns, "rows": rows,
+            "row_count": len(rows), "fallback": False, "steps": steps}
+
+
+def fallback_node(state: AgentState) -> dict:
+    offline = not LLM_API_KEY
+    hint = ("Python Agent 离线模式仅支持闲聊;配置 LLM_API_KEY 后即可完整回答取数问题"
+            if offline else "未能理解或执行该问题,可换个问法重试")
+    return {"fallback": True, "fallback_hint": hint, "row_count": 0,
+            "steps": [{"name": "兜底", "detail": hint, "ok": False}]}
+
+
+# ---------------- 组图 ----------------
+
+def build_graph():
+    g = StateGraph(AgentState)
+    g.add_node("intent", intent_node)
+    g.add_node("chitchat", chitchat_node)
+    g.add_node("agent", agent_node)
+    g.add_node("fallback", fallback_node)
+    g.add_edge(START, "intent")
+    g.add_conditional_edges("intent", route_after_intent,
+                            {"chitchat": "chitchat", "agent": "agent", "fallback": "fallback"})
+    g.add_edge("chitchat", END)
+    g.add_edge("agent", END)
+    g.add_edge("fallback", END)
+    return g.compile()
+
+
+GRAPH = build_graph()
+
+
+def answer(dataset_id: int, question: str) -> dict:
+    """入口:跑图,把状态映射为与 Java AnswerPayload 同构的字典"""
+    started = time.time()
+    try:
+        final = GRAPH.invoke({"question": question, "dataset_id": dataset_id},
+                             config={"recursion_limit": 30})
+    except Exception as e:  # noqa: BLE001
+        return {"sql": None, "explanation": None, "columns": [], "rows": [], "rowCount": 0,
+                "fallback": True, "fallbackHint": f"Python Agent 异常: {e}", "engine": "PYTHON",
+                "steps": [{"name": "异常", "detail": str(e)[:200], "ok": False}],
+                "tookMs": int((time.time() - started) * 1000)}
     return {
-        "sql": None, "explanation": None, "columns": [], "rows": [], "rowCount": 0,
-        "fallback": True, "fallbackHint": hint, "engine": "PYTHON",
-        "steps": steps, "tookMs": int((time.time() - started) * 1000),
+        "sql": final.get("sql"),
+        "explanation": final.get("explanation"),
+        "columns": final.get("columns") or [],
+        "rows": final.get("rows") or [],
+        "rowCount": final.get("row_count") or 0,
+        "fallback": bool(final.get("fallback")),
+        "fallbackHint": final.get("fallback_hint"),
+        "engine": "PYTHON",
+        "steps": final.get("steps") or [],
+        "tookMs": int((time.time() - started) * 1000),
     }

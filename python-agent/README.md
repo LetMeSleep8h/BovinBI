@@ -3,6 +3,17 @@
 Java 做底座、Python 做 AI 能力接入的第一版:提问时在前端自由选择
 「Java 引擎」或「Python Agent」,两条链路独立、可对比评测。
 
+## 技术栈(FastAPI + LangChain + LangGraph)
+
+- **FastAPI**:HTTP 服务层(/v1/answer、/health);
+- **LangChain**:ChatOpenAI(OpenAI 兼容,DeepSeek/GLM/通义通用)+ 工具绑定;
+- **LangGraph**:StateGraph 工作流编排 ——
+  `START → intent(LLM 意图判定) → chitchat | agent(ReAct 循环) | fallback → END`,
+  Agent 节点用 `create_react_agent`:模型自主决定调用哪些 MCP 工具、循环至产出答案,
+  消息状态与工具调用循环由框架管理(不再手写);
+- **langchain-mcp-adapters**:官方 MCP 适配器直连 Java 底座 /mcp
+  (streamable-http + Bearer),getSchema/executeSql 等工具自动转为 LangChain Tool。
+
 ## 架构原则
 
 ```
@@ -32,6 +43,16 @@ curl http://localhost:8090/health
 ```
 
 ## 环境 变量
+
+## 版本兼容(踩坑实录,改版本前先读)
+
+langgraph 0.6+ 需要 langchain-core≥0.4(与 langchain 0.3.x 冲突);
+langchain-mcp-adapters 0.2 需要 core 的新模块(同左);
+mcp SDK 2.x 移除了 adapters 0.1.x 依赖的 `mcp.shared.session`;
+mcp 1.10.0 才有 adapters 需要的 `mcp.types.ResourceLink`;
+adapters 0.1.x 的 MultiServerMCPClient **不能** `async with`(0.2 才恢复)。
+可行组合已钉死在 requirements.txt:langchain 0.3.30 / langgraph 0.5.4 /
+adapters 0.1.14 / mcp 1.10.0。
 
 | 变量 | 默认 | 说明 |
 |---|---|---|

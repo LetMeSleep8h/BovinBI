@@ -24,6 +24,7 @@ public class ChatController {
 
     private final ChatService chatService;
     private final ChatQueryService chatQueryService;
+    private final com.eighthours.bovinbi.mcp.plan.PlanExecutor planExecutor;
 
     @GetMapping("/sessions")
     public ApiResponse<List<SessionVO>> sessions() {
@@ -89,6 +90,29 @@ public class ChatController {
     }
 
     public record ApproveReq(Boolean approve) {
+    }
+
+    /**
+     * 多步计划(融合 plan/verify/拓扑执行骨架):只规划不执行 ——
+     * 返回四道校验后的拓扑序步骤,前端可展示确认;确认后调 /plan/execute。
+     */
+    @PostMapping("/plan")
+    public ApiResponse<List<Map<String, Object>>> plan(@Valid @RequestBody ChatReq req) {
+        return ApiResponse.ok(planExecutor.plan(req.datasetId(), req.question(), req.sessionId()).stream()
+                .map(st -> Map.of("id", (Object) st.id(), "tool", st.tool(),
+                        "params", st.params(), "depends_on", st.dependsOn()))
+                .toList());
+    }
+
+    /** 多步计划:按拓扑序执行已确认的计划(每步过注册中心:守护/配额/轨迹同一套) */
+    @PostMapping("/plan/execute")
+    public ApiResponse<AnswerPayload> executePlan(@Valid @RequestBody PlanExecuteReq req) {
+        return ApiResponse.ok(planExecutor.execute(req.datasetId(), req.question(), req.sessionId(),
+                System.nanoTime(), req.steps()));
+    }
+
+    public record PlanExecuteReq(Long datasetId, String question, Long sessionId,
+                                 List<com.eighthours.bovinbi.mcp.plan.PlanOps.Step> steps) {
     }
 
     /** 两段式:理解问题并生成/守护 SQL,不查库 */

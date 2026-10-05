@@ -47,6 +47,32 @@ public class McpToolRegistry {
         return new ArrayList<>(catalog.values());
     }
 
+    /** 工具规格目录(带预算配额与写操作标记):计划校验器/工具面板与本方法共用同一份元数据 */
+    public List<ToolSpec> specs() {
+        List<ToolSpec> out = new ArrayList<>();
+        localTools.forEach((name, t) -> out.add(toSpec(name, t.definition())));
+        ensureRemotes();
+        catalog.forEach((name, def) -> {
+            if (!localTools.containsKey(name)) {
+                out.add(toSpec(name, def));
+            }
+        });
+        return out;
+    }
+
+    private ToolSpec toSpec(String name, McpToolDefinition def) {
+        // 每工具配额挂在元数据上:与 AgentRunContext.tryConsume 的分支一一对应(新增工具一处登记)
+        int quota = switch (name) {
+            case "executeSql" -> 3;
+            case "getSchema" -> 2;
+            case "getColumnValues" -> 4;
+            case "exportReport" -> 3;
+            default -> -1; // 不计预算
+        };
+        boolean mutator = name.toLowerCase().contains("import") || name.toLowerCase().contains("batchimport");
+        return ToolSpec.of(name, def.description(), def.inputSchema(), quota, mutator);
+    }
+
     /** 唯一执行入口:预算(循环内)→ 分发 → 轨迹/异常隔离 */
     public McpToolResult call(String name, Map<String, Object> arguments) {
         McpTool local = localTools.get(name);

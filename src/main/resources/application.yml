@@ -134,9 +134,15 @@ bovin:
   mcp:
     # 工具统一按 MCP 协议管理:本地工具(getSchema/getColumnValues/executeSql)与远程
     # MCP server 的工具在 McpToolRegistry 合并成一份目录;Agent 循环与对外 /mcp 端点
-    # 共用同一执行入口(预算/守护/轨迹同一套)
-    server-enabled: false   # true = 暴露 POST /mcp(JSON-RPC),外部 MCP 客户端可接入本系统工具
-    api-keys: []            # /mcp 鉴权 Bearer key 列表;留空 = 演示不鉴权
+    # 共用同一执行入口(预算/守护/轨迹同一套)。
+    # Python Agent(engine=python)的工具调用也回环到这里 —— 安全边界仍在 Java
+    server-enabled: true
+    api-keys: [bovin-mcp-demo]   # /mcp 鉴权 Bearer key;Python Agent 的 MCP_API_KEY 需与之一致
+  python-agent:
+    # AI 能力层(独立 Python 服务,提问时可选 engine=python):
+    # 不可达时自动降级 Java 引擎,标签 PYTHON(降级JAVA)
+    url: ${BOVIN_PYTHON_AGENT_URL:http://localhost:8090}
+    timeout-seconds: 90
     servers: []             # 远程 MCP server 列表,工具以 "服务名__工具名" 进入统一目录
     # servers:
     #   - name: weather

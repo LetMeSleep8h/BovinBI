@@ -64,11 +64,38 @@ services:
       BOVIN_PG_URL: jdbc:postgresql://pgvector:5432/bovin_rag
       BOVIN_PG_USER: postgres
       BOVIN_PG_PASSWORD: bovin123
+      BOVIN_PYTHON_AGENT_URL: http://python-agent:8090
       TZ: Asia/Shanghai
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     depends_on:
       mysql:
         condition: service_healthy
       pgvector:
+        condition: service_healthy
+
+  # AI 能力层:Python Agent(经 MCP 回环调用 backend 的工具,不直连数据库)
+  python-agent:
+    build:
+      context: ../python-agent
+      dockerfile: Dockerfile
+    container_name: bovinbi-python-agent
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      JAVA_MCP_URL: http://backend:8080/mcp
+      MCP_API_KEY: bovin-mcp-demo
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      TZ: Asia/Shanghai
+    depends_on:
+      backend:
         condition: service_healthy
 
 volumes:

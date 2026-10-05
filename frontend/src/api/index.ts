@@ -15,8 +15,8 @@ export const deleteSession = (id: number) => http.delete(`/chat/sessions/${id}`)
 
 export const listMessages = (sessionId: number) => http.get<never, any[]>(`/chat/sessions/${sessionId}/messages`)
 
-export const ask = (sessionId: number, question: string) =>
-  http.post<never, any>('/chat/ask', { sessionId, question })
+export const ask = (sessionId: number, question: string, engine?: string) =>
+  http.post<never, any>('/chat/ask', { sessionId, question, engine })
 
 /**
  * 流式问答(SSE):实时回调每一步 AI 工作内容(意图识别/Schema召回/工具调用…),
@@ -26,7 +26,8 @@ export async function askStream(
   sessionId: number,
   question: string,
   onStep: (step: { seq: number; name: string; detail: string; ok: boolean }) => void,
-  onApproval?: (a: { queryId: number; sql: string; explanation: string }) => Promise<boolean>
+  onApproval?: (a: { queryId: number; sql: string; explanation: string }) => Promise<boolean>,
+  engine?: string
 ): Promise<any> {
   const token = localStorage.getItem('bovin_token')
   const resp = await fetch('/api/chat/ask/stream', {
@@ -35,7 +36,7 @@ export async function askStream(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ sessionId, question })
+    body: JSON.stringify({ sessionId, question, engine })
   })
   if (!resp.ok || !resp.body) throw new Error(`stream HTTP ${resp.status}`)
   const reader = resp.body.getReader()

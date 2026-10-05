@@ -41,6 +41,8 @@ public class ChatService {
     private final DatasetMapper datasetMapper;
     private final QueryLogMapper queryLogMapper;
     private final Nl2SqlService nl2SqlService;
+    private final PythonAgentService pythonAgentService;
+    private final ChartAdvisor chartAdvisor;
     private final ChatQueryService chatQueryService;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
@@ -91,12 +93,42 @@ public class ChatService {
 
     /** 核心问答:持久化两条消息 + 审计日志,返回助手消息 */
     public MessageVO ask(Long sessionId, String question) {
-        return runAsk(sessionId, question, -1L);
+        return runAsk(sessionId, question, -1L, null);
+    }
+
+    public MessageVO ask(Long sessionId, String question, String engine) {
+        return runAsk(sessionId, question, -1L, engine);
     }
 
     /** 流式问答:阶段经 TraceHub 实时推送(见 ChatController /ask/stream),最终消息随 done 事件返回 */
-    public MessageVO askStream(Long sessionId, String question, long queryId) {
-        return runAsk(sessionId, question, queryId);
+    public MessageVO askStream(Long sessionId, String question, long queryId, String engine) {
+        return runAsk(sessionId, question, queryId, engine);
+    }
+
+    /**
+     * Python 引擎链路:转发给 python-agent 服务(其工具调用经 MCP 回环到底座),
+     * 步骤轨迹推 TraceHub 实时上屏;不可用时降级 Java 引擎,标签注明降级。
+     */
+    private AnswerPayload answerByPython(ChatSession session, String question, long queryId) {
+        TraceHub.publish(queryId, "引擎执行", "Python Agent(跨语言,MCP 回环执行)", true);
+        try {
+            AnswerPayload p = pythonAgentService.answer(session.getDatasetId(), question, session.getId());
+            // Python 侧步骤在响应里带回:推上实时流(准实时,完整步骤随载荷返回)
+            if (p.getTrace() != null) {
+                p.getTrace().forEach(t -> TraceHub.publish(queryId,
+                        "py:" + t.tool(), t.args(), t.ok()));
+            }
+            if (p.getColumns() != null && !p.getColumns().isEmpty()) {
+                p.setChart(chartAdvisor.advise(question, p.getColumns(), p.getRows()));
+            }
+            return p;
+        } catch (Exception e) {
+            log.warn("Python 引擎失败,降级 Java 引擎: {}", e.getMessage());
+            TraceHub.publish(queryId, "Python降级", "Python Agent 不可用,自动切回 Java 引擎", false);
+            AnswerPayload p = nl2SqlService.answer(session.getDatasetId(), question, session.getId(), queryId);
+            p.setEngine("PYTHON(降级JAVA)");
+            return p;
+        }
     }
 
     /**
@@ -166,7 +198,7 @@ public class ChatService {
                 ? "已完成查询,共 " + p.getRowCount() + " 行结果" : p.getExplanation();
     }
 
-    private MessageVO runAsk(Long sessionId, String question, long queryId) {
+    private MessageVO runAsk(Long sessionId, String question, long queryId, String engine) {
         TraceHub.publish(queryId, "会话校验", "校验会话归属与数据集", true);
         ChatSession session = mustOwn(sessionId);
         // 权限划分:STEP(每一步过问)→ 生成 SQL 后等用户确认再执行;AUTO(完全允许)→ 全自动
@@ -188,7 +220,7 @@ public class ChatService {
         messageMapper.insert(userMsg);
 
         long t0 = System.currentTimeMillis();
-        String engine = null;
+        String payloadEngine = null;
         String finalSql = null;
         TraceHub.publish(queryId, "记录问题", "用户消息落库", true);
         QueryLog queryLog = new QueryLog();
@@ -198,18 +230,22 @@ public class ChatService {
 
         AnswerPayload payload;
         try {
-            payload = nl2SqlService.answer(session.getDatasetId(), question, sessionId, queryId);
-            engine = payload.getEngine();
+            if ("python".equalsIgnoreCase(engine)) {
+                payload = answerByPython(session, question, queryId);
+            } else {
+                payload = nl2SqlService.answer(session.getDatasetId(), question, sessionId, queryId);
+            }
+            payloadEngine = payload.getEngine();
             finalSql = payload.getSql();
         } catch (Exception e) {
             log.error("问答失败: {}", e.getMessage());
             payload = new AnswerPayload();
             payload.setFallback(true);
             payload.setFallbackHint("查询失败:" + e.getMessage());
-            engine = "FAILED";
+            payloadEngine = "FAILED";
         }
 
-        TraceHub.publish(queryId, "查询执行", "引擎: " + (engine == null ? "-" : engine),
+        TraceHub.publish(queryId, "查询执行", "引擎: " + (payloadEngine == null ? "-" : payloadEngine),
                 !payload.isFallback());
         String content = payload.isFallback()
                 ? payload.getFallbackHint()
@@ -229,7 +265,7 @@ public class ChatService {
         messageMapper.insert(botMsg);
 
         queryLog.setFinalSql(finalSql);
-        queryLog.setEngine(engine);
+        queryLog.setEngine(payloadEngine);
         queryLog.setStatus(payload.isFallback() ? "FAILED" : "SUCCESS");
         queryLog.setRowCount(payload.getRowCount());
         queryLog.setCostMs((int) (System.currentTimeMillis() - t0));

@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 echo "==> 启动 BovinBI 全栈(MySQL 8 + pgvector + 后端)..."
 if [ "$1" = "--rebuild" ]; then
-  docker compose up -d --build --force-recreate backend
+  docker compose up -d --build
 else
   docker compose up -d --build
 fi

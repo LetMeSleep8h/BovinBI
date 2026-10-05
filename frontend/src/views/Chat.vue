@@ -14,6 +14,9 @@ const messages = ref<ChatMessage[]>([])
 const question = ref('')
 const sending = ref(false)
 const datasets = ref<Dataset[]>([])
+/** 提问引擎:java(底座链路)/ python(Python Agent,跨语言 MCP 回环) */
+const engine = ref<'java' | 'python'>('java')
+
 /** 实时工作流:流式问答过程中收到的 AI 工作步骤 */
 const liveSteps = ref<{ seq: number; name: string; detail: string; ok: boolean }[]>([])
 
@@ -89,12 +92,12 @@ async function send(q?: string) {
       } catch {
         return false
       }
-    })
+    }, engine.value)
     messages.value.push(bot)
   } catch (e) {
     // 流式失败降级回一次性问答,演示不中断
     try {
-      const bot = await ask(currentId.value!, text)
+      const bot = await ask(currentId.value!, text, engine.value)
       messages.value.push(bot)
     } catch (ignore) {
       // 两条路都失败:静默(全局拦截器已提示)
@@ -178,6 +181,10 @@ onMounted(async () => {
           <el-input v-model="question" type="textarea" :rows="2" resize="none"
                     placeholder="试试问:近12个月每月产奶量趋势(Enter 发送)"
                     @keydown.enter.exact.prevent="send()" />
+          <el-radio-group v-model="engine" size="small" style="flex: none">
+            <el-radio-button value="java">☕ Java 引擎</el-radio-button>
+            <el-radio-button value="python">🐍 Python Agent</el-radio-button>
+          </el-radio-group>
           <el-button type="primary" size="large" :icon="Promotion" :loading="sending" @click="send()">
             发送
           </el-button>

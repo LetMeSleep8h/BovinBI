@@ -24,6 +24,7 @@ public class BovinProperties {
     private Rag1 rag1 = new Rag1();
     private Gateway gateway = new Gateway();
     private Mcp mcp = new Mcp();
+    private PythonAgent pythonAgent = new PythonAgent();
 
     @Data
     public static class Chat {
@@ -166,6 +167,18 @@ public class BovinProperties {
         private double threshold = 0.55;
         /** 建库连接超时毫秒:PG 不可达时快速失败切进程内兜底,不拖慢启动 */
         private int connectionTimeoutMs = 5000;
+    }
+
+    /**
+     * Python Agent(AI 能力层):engine=python 的提问路由到该独立服务,
+     * 其工具调用经 MCP 回环到底座 —— 安全边界仍在 Java。不可用时自动降级 Java 引擎。
+     */
+    @Data
+    public static class PythonAgent {
+        /** Python Agent 服务地址(compose 内为 http://python-agent:8090) */
+        private String url = "http://localhost:8090";
+        /** 调用超时(秒) */
+        private int timeoutSeconds = 90;
     }
 
     /**

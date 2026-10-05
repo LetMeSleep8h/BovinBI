@@ -49,7 +49,7 @@ public class ChatController {
 
     @PostMapping("/ask")
     public ApiResponse<MessageVO> ask(@Valid @RequestBody ChatReq req) {
-        return ApiResponse.ok(chatService.ask(req.sessionId(), req.question()));
+        return ApiResponse.ok(chatService.ask(req.sessionId(), req.question(), req.engine()));
     }
 
     /**
@@ -69,7 +69,7 @@ public class ChatController {
         java.util.concurrent.CompletableFuture.runAsync(() -> {
             com.eighthours.bovinbi.security.UserContext.set(uid, uname, role);
             try {
-                MessageVO bot = chatService.askStream(req.sessionId(), req.question(), queryId);
+                MessageVO bot = chatService.askStream(req.sessionId(), req.question(), queryId, req.engine());
                 com.eighthours.bovinbi.trace.TraceHub.finish(queryId, "done", bot);
             } catch (Exception e) {
                 com.eighthours.bovinbi.trace.TraceHub.finish(queryId, "error",

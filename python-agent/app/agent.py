@@ -2,8 +2,8 @@
 
 - LLM 模式(配置了 LLM_API_KEY):调 OpenAI 兼容接口,基于 MCP 取回的 Schema
   生成 SQL,再经 MCP executeSql 执行 —— 工具循环的最小闭环;
-- 离线模式(无 Key):内置规则(agent 版),按 Schema 字段元数据拼单表 SQL,
-  同样经 MCP 执行 —— 保证零外部依赖也能演示跨语言链路。
+- 离线模式(无 Key):内置规则(agent 版),按 Schema 字段元数据 + 数据集描述里的
+  JOIN 关系拼 SQL(星型一层 JOIN),同样经 MCP 执行 —— 零外部依赖可演示。
 
 安全设计:Python 只做"智力"(选表/拼 SQL),能不能跑永远由 Java 底座的
 SqlGuard 决定(表白名单/仅 SELECT/强制 LIMIT),与 Java 引擎同一套边界。
@@ -40,7 +40,7 @@ def answer(dataset_id: int, question: str) -> dict:
         schema_text = mcp_client.get_schema(dataset_id, question)
         fields = _parse_fields(schema_text)
 
-        sql, explanation = _generate(dataset_id, question, schema_text, fields, step)
+        sql, explanation = _generate(question, schema_text, fields, step)
 
         step("executeSql(MCP)", sql[:120])
         preview = mcp_client.execute_sql(dataset_id, sql)
@@ -67,12 +67,12 @@ def answer(dataset_id: int, question: str) -> dict:
         return _fallback(f"Python Agent 异常: {e}", steps, started)
 
 
-def _generate(dataset_id, question, schema_text, fields, step):
+def _generate(question, schema_text, fields, step):
     if LLM_API_KEY:
         step("LLM生成", f"{LLM_MODEL} 按 Schema 生成 SQL")
         return _llm_generate(question, schema_text)
-    step("规则生成", "离线模式:按字段元数据拼装 SQL(配置 LLM_API_KEY 可升级为 LLM 生成)")
-    return _rule_generate(question, fields)
+    step("规则生成", "离线模式:按字段元数据 + JOIN 关系拼装 SQL(配置 LLM_API_KEY 可升级为 LLM 生成)")
+    return _rule_generate(question, fields, schema_text)
 
 
 # ---------------- LLM 模式 ----------------
@@ -105,7 +105,7 @@ def _llm_generate(question, schema_text) -> tuple[str, str]:
     return sql, data.get("explanation", "")
 
 
-# ---------------- 离线规则模式(单表白名单) ----------------
+# ---------------- 离线规则模式(星型 JOIN) ----------------
 
 _TIME_PATTERNS = [
     (re.compile(r"近(\d{1,3})天|最近(\d{1,3})天"), "days"),
@@ -113,21 +113,57 @@ _TIME_PATTERNS = [
 ]
 
 
-def _rule_generate(question, fields):
+def _parse_joins(schema_text):
+    """从数据集描述解析 JOIN 关系:`表.列=表.列` 列表(星型一层,覆盖演示星型)"""
+    m = re.search(r"JOIN关系[:：]\s*([^\n]+)", schema_text)
+    if not m:
+        return []
+    edges = []
+    for full in re.finditer(r"(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)", m.group(1)):
+        t1, c1, t2, c2 = full.groups()
+        edges.append({"t1": t1, "c1": c1, "t2": t2, "c2": c2})
+    return edges
+
+
+def _join_path(table, dim_table, edges):
+    """找 table 与 dim_table 的直连边,返回 (事实表外键, 维表主键);无则 None"""
+    for e in edges:
+        if e["t1"] == table and e["t2"] == dim_table:
+            return e["c1"], e["c2"]
+        if e["t2"] == table and e["t1"] == dim_table:
+            return e["c2"], e["c1"]
+    return None
+
+
+def _rule_generate(question, fields, schema_text):
     q = question.lower()
     metric = _match_field(fields, "METRIC", q) or _first(fields, "METRIC")
     dim = _match_field(fields, "DIMENSION", q)
     date_field = next((f for f in fields if f["field_type"] == "DIMENSION"
                        and f["data_type"] == "DATE"), None)
+    edges = _parse_joins(schema_text)
 
     if metric is None:
         raise RuntimeError("Schema 中未找到指标字段,离线规则无法生成")
 
     table = metric["table"]
-    # 离线规则只做单表:维度不在指标表则丢弃分组,保证 SQL 可执行
+
+    # 维度在其它表:有 JOIN 边则联表(事实表 t0 + 维度表 t1),没有则退化为不分组
+    from_sql = table
+    dim_ref = None
     if dim and dim["table"] != table:
-        dim = None
-    expr = _agg_expr(metric)
+        edge = _join_path(table, dim["table"], edges)
+        if edge:
+            fk, pk = edge
+            from_sql = f"{table} t0 JOIN {dim['table']} t1 ON t0.{fk} = t1.{pk}"
+            dim_ref = f"t1.{dim['column']}"
+        else:
+            dim = None
+    elif dim:
+        dim_ref = f"t0.{dim['column']}"
+
+    # 聚合表达式中的列统一带表前缀:ROUND(SUM(t0.price)) / COUNT(DISTINCT t0.order_id)
+    expr = _agg_expr(metric).replace(metric["column"], f"t0.{metric['column']}")
 
     topn = None
     m = re.search(r"(?:top\s*(\d{1,2}))|(?:前\s*(\d{1,2}))", q)
@@ -138,16 +174,15 @@ def _rule_generate(question, fields):
 
     selects, group = [], None
     if trend and date_field and date_field["table"] == table:
-        col = f"DATE_FORMAT({date_field['column']}, '%Y-%m')"
-        selects.append((col, "月份"))
+        selects.append((f"DATE_FORMAT(t0.{date_field['column']}, '%Y-%m')", "月份"))
         group = "月份"
-    elif dim:
-        selects.append((dim["column"], dim["alias"]))
+    elif dim and dim_ref:
+        selects.append((dim_ref, dim["alias"]))
         group = dim["alias"]
     selects.append((expr, metric["alias"]))
 
-    where = _time_where(question, date_field, q)
-    sql = f"SELECT {', '.join(f'{c} AS {a}' for c, a in selects)} FROM {table}"
+    where = _time_where(question, date_field, table, q)
+    sql = f"SELECT {', '.join(f'{c} AS {a}' for c, a in selects)} FROM {from_sql}"
     if where:
         sql += f" WHERE {where}"
     if group:
@@ -160,10 +195,10 @@ def _rule_generate(question, fields):
     return sql, f"[Python 离线规则] {label}"
 
 
-def _time_where(question, date_field, q):
+def _time_where(question, date_field, table, q):
     if date_field is None:
         return None
-    col = date_field["column"]
+    col = f"t0.{date_field['column']}" if date_field["table"] == table else date_field["column"]
     for pat, kind in _TIME_PATTERNS:
         m = pat.search(question)
         if m:
@@ -210,7 +245,7 @@ def _agg_expr(metric):
 
 # ---------------- Schema/预览解析 ----------------
 
-_FIELD_LINE = re.compile(r"^(\w+)\.(\w+)\s+\S+\s+业务名:(\S+?)(?:[((].*)?$")
+_FIELD_LINE = re.compile(r"^(\w+)\.(\w+)\s+(\S+)\s+业务名:(\S+?)(?:[((].*)?$")
 
 
 def _parse_fields(schema_text):
@@ -223,19 +258,15 @@ def _parse_fields(schema_text):
         m = _FIELD_LINE.match(line)
         if not m:
             continue
-        table, column, alias = m.group(1), m.group(2), m.group(3)
+        table, column, dtype, alias = m.group(1), m.group(2), m.group(3), m.group(4)
         ftype = "METRIC" if ("指标" in line) else "DIMENSION"
         agg = "SUM"
         am = re.search(r"聚合方式:(\w+)", line)
         if am:
             agg = am.group(1)
-        dtype = "DECIMAL"
-        dm = re.match(r"^(\w+)\.(\w+)\s+(\S+)", line)
-        if dm:
-            dtype = dm.group(3)
         synonyms = [s for s in re.findall(r"同义词:\[(.*?)\]", line) for s in s.split(",")]
         fields.append({
-            "table": table, "column": column, "alias": alias.rstrip("(维度)指标"),
+            "table": table, "column": column, "alias": alias,
             "field_type": ftype, "agg_type": agg, "data_type": dtype,
             "synonyms": [s.strip() for s in synonyms if s.strip()],
         })

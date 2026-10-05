@@ -114,8 +114,10 @@ watch(datasetId, loadFields)
 
 onMounted(async () => {
   datasets.value = await listDatasets()
-  if (datasets.value.length) {
-    datasetId.value = datasets.value[0].id
+  // 默认电商真实数据(展示主场景),无则退回第一个
+  const preferred = datasets.value.find(d => d.name.includes('电商')) ?? datasets.value[0]
+  if (preferred) {
+    datasetId.value = preferred.id
   }
 })
 </script>

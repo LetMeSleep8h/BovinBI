@@ -10,6 +10,8 @@ const props = defineProps<{ payload: AnswerPayload }>()
 const engineLabel = computed(() => {
   const e = props.payload.engine || ''
   if (e === 'CACHE') return { text: '缓存命中', type: 'success' as const }
+  if (e === 'PYTHON') return { text: 'Python Agent', type: 'warning' as const }
+  if (e.startsWith('PYTHON')) return { text: e, type: 'warning' as const }
   if (e.startsWith('LLM')) return { text: `LLM生成${e.includes('降级') ? '(规则兜底)' : ''}`, type: 'primary' as const }
   return { text: '规则引擎', type: 'info' as const }
 })

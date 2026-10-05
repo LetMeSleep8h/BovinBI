@@ -14,22 +14,26 @@ const messages = ref<ChatMessage[]>([])
 const question = ref('')
 const sending = ref(false)
 const datasets = ref<Dataset[]>([])
-/** 提问引擎:java(底座链路)/ python(Python Agent,跨语言 MCP 回环) */
-const engine = ref<'java' | 'python'>('java')
+/** 提问引擎:python(Python Agent,离线也能答电商)/ java(底座链路),可随时切换 */
+const engine = ref<'java' | 'python'>('python')
 
 /** 实时工作流:流式问答过程中收到的 AI 工作步骤 */
 const liveSteps = ref<{ seq: number; name: string; detail: string; ok: boolean }[]>([])
 
 const RECOMMEND = [
-  '近12个月每月产奶量趋势',
-  '产奶量Top10牧场',
-  '上个月各品种产奶量占比',
-  '今年总产奶量',
-  '近3个月每月各牧场产奶量',
-  '今年各季度乳脂率',
-  '各地区泌乳牛数对比',
-  '上个月产奶量环比'
+  '销售额Top10商品类目',
+  '各客户州销售额',
+  '每月销售额趋势',
+  '总销售额是多少',
+  '各商品类目订单数',
+  '各城市销售额占比',
+  '运费最高的商品类目',
+  '订单数最多的客户城市'
 ]
+
+/** 默认数据集:优先电商真实数据(展示主场景),无则退回第一个 */
+const defaultDataset = () =>
+  datasets.value.find(d => d.name.includes('电商')) ?? datasets.value[0]
 
 const msgScroll = ref<HTMLDivElement>()
 
@@ -44,7 +48,7 @@ async function selectSession(id: number) {
 }
 
 async function newChat() {
-  const ds = datasets.value[0]
+  const ds = defaultDataset()
   if (!ds) {
     ElMessage.warning('暂无数据集')
     return
@@ -135,14 +139,14 @@ onMounted(async () => {
           <el-icon style="color:#c0c4cc" @click.stop="removeSession(s.id)"><Delete /></el-icon>
         </div>
       </div>
-      <div class="muted" style="padding: 10px 14px">数据集:{{ datasets[0]?.name || '-' }}</div>
+      <div class="muted" style="padding: 10px 14px">数据集:{{ defaultDataset()?.name || '-' }}</div>
     </div>
 
     <div class="chat-main">
       <div ref="msgScroll" class="msg-scroll">
         <div v-if="messages.length === 0" class="welcome">
           <h2>你好,我是 BovinBI 数据分析助手 📊</h2>
-          <p>基于「{{ datasets[0]?.name }}」数据集,用大白话问数据,我来自动生成 SQL 并绘制图表</p>
+          <p>基于「{{ defaultDataset()?.name }}」数据集,用大白话问数据,我来自动生成 SQL 并绘制图表</p>
           <div class="chip-grid">
             <el-tag v-for="r in RECOMMEND" :key="r" class="chip" effect="plain" size="large" @click="send(r)">
               {{ r }}
@@ -179,7 +183,7 @@ onMounted(async () => {
       <div class="chat-input-area">
         <div class="input-wrap">
           <el-input v-model="question" type="textarea" :rows="2" resize="none"
-                    placeholder="试试问:近12个月每月产奶量趋势(Enter 发送)"
+                    placeholder="试试问:销售额Top10商品类目 / 各客户州销售额(Enter 发送)"
                     @keydown.enter.exact.prevent="send()" />
           <el-radio-group v-model="engine" size="small" style="flex: none">
             <el-radio-button value="java">☕ Java 引擎</el-radio-button>

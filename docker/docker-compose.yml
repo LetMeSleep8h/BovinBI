@@ -63,6 +63,11 @@ services:
       BOVIN_PG_USER: postgres
       BOVIN_PG_PASSWORD: bovin123
       BOVIN_PYTHON_AGENT_URL: http://python-agent:8090
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      BOVIN_LLM_PROVIDER: ${BOVIN_LLM_PROVIDER:-mock}
+      BOVIN_LLM_BASE_URL: ${BOVIN_LLM_BASE_URL:-https://api.deepseek.com}
+      BOVIN_LLM_MODEL: ${BOVIN_LLM_MODEL:-deepseek-chat}
+      BOVIN_CHAT_ENGINE: ${BOVIN_CHAT_ENGINE:-agent}
       TZ: Asia/Shanghai
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/health >/dev/null 2>&1 || exit 1"]

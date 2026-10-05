@@ -68,6 +68,8 @@ services:
       BOVIN_LLM_BASE_URL: ${BOVIN_LLM_BASE_URL:-https://api.deepseek.com}
       BOVIN_LLM_MODEL: ${BOVIN_LLM_MODEL:-deepseek-chat}
       BOVIN_CHAT_ENGINE: ${BOVIN_CHAT_ENGINE:-agent}
+      BOVIN_AGENT_LLM_TIMEOUT_SECONDS: ${BOVIN_AGENT_LLM_TIMEOUT_SECONDS:-60}
+      BOVIN_LLM_TIMEOUT_SECONDS: ${BOVIN_LLM_TIMEOUT_SECONDS:-90}
       TZ: Asia/Shanghai
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/health >/dev/null 2>&1 || exit 1"]

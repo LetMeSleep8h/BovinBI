@@ -42,3 +42,7 @@ src/main/resources/static/
 eval-report.md
 *.log
 archive/
+
+### 密钥(绝不提交) ###
+docker/.env
+.env

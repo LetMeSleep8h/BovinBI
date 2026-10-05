@@ -73,7 +73,7 @@ public class LangChain4jClient implements LlmClient {
             List<ChatMessage> messages = List.of(
                     SystemMessage.from(systemPrompt),
                     UserMessage.from(userPrompt));
-            Response<AiMessage> resp = model().generate(messages);
+            Response<AiMessage> resp = generateWithDnsRetry(messages);
             recordUsage(resp);
             String content = resp.content().text();
             if (content == null || content.isBlank()) {
@@ -86,6 +86,29 @@ public class LangChain4jClient implements LlmClient {
             log.warn("LLM 调用失败: {}", e.getMessage());
             throw new BizException(502, "LLM 调用失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * DNS 友好重试:LLM 端点的多 A 记录里可能混有不可达 IP(如 DeepSeek 的
+     * 103.220.64.100),OkHttp 无 Happy Eyeballs、连上坏 IP 只能等 callTimeout。
+     * JVM DNS 缓存已调短(SecurityProperty ttl=5s),外层最多 2 次重试,
+     * 重新解析后大概率落到可达 IP —— 实测第 2 次即成功(925ms)。
+     */
+    private Response<AiMessage> generateWithDnsRetry(List<ChatMessage> messages) {
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                return model().generate(messages);
+            } catch (RuntimeException e) {
+                String msg = String.valueOf(e.getCause() != null ? e.getCause() : e);
+                if (!msg.contains("timeout") && !msg.contains("InterruptedIOException")) {
+                    throw e; // 非 DNS/网络超时类失败不重试(如 401/429 由调用方处理)
+                }
+                last = e;
+                log.warn("LLM 调用疑似撞不可达 IP(第 {} 次),重试换解析: {}", attempt, msg.substring(0, Math.min(80, msg.length())));
+            }
+        }
+        throw last;
     }
 
     /** token 用量计量:每用户每日独立累计(uid 取请求线程,无用户态则跳过) */

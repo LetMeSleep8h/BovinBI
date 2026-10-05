@@ -50,11 +50,16 @@ public class AgentOrchestrator {
 
     /** @param sessionId 会话 id(agent 记忆锚点);为 null(如评测单轮跑批)时生成一次性 id,避免题目间记忆串扰 */
     public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
-        return answer(datasetId, question, sessionId, -1L);
+        return answer(datasetId, question, sessionId, -1L, 1);
     }
 
     /** @param queryId 实时工作流流 id,工具循环的每次调用经 TraceHub 实时推送 */
     public AnswerPayload answer(Long datasetId, String question, Long sessionId, long queryId) {
+        return answer(datasetId, question, sessionId, queryId, 1);
+    }
+
+    /** @param attempt DNS 友好重试的当前轮次(超时类失败自动再试一次,换 DNS 解析) */
+    private AnswerPayload answer(Long datasetId, String question, Long sessionId, long queryId, int attempt) {
         long t0 = System.currentTimeMillis();
         AgentRunContext ctx = new AgentRunContext(datasetId, question, props.getChat().getAgent(), queryId);
 
@@ -65,16 +70,22 @@ public class AgentOrchestrator {
         }
         try {
             TimeRange tr = timeRangeParser.parse(question);
-            String raw = runLoop(agent, ctx, sessionId, tr);
+            String raw = runLoop(agent, ctx, sessionId, tr, 1);
             return assemble(ctx, raw, t0);
         } catch (Exception e) {
+            String msg = String.valueOf(e.getCause() != null ? e.getCause() : e);
+            // DNS 友好重试:疑似撞不可达 IP(多 A 记录场景)时再试一次,大概率换解析成功
+            if (attempt < 2 && msg.contains("timeout")) {
+                log.warn("Agent 链路超时(疑似不可达 IP),重试一次: {}", msg.substring(0, Math.min(80, msg.length())));
+                return answer(datasetId, question, sessionId, attempt + 1);
+            }
             log.warn("Agent 链路失败,降级规则引擎: {}", e.getMessage());
             return ruleFallback(ctx, t0, "AGENT(降级RULE)");
         }
     }
 
     /** 建立 ThreadLocal 上下文后进入工具循环;finally 清理是硬约束,异常路径也不允许泄漏 */
-    private String runLoop(BovinAgent agent, AgentRunContext ctx, Long sessionId, TimeRange tr) {
+    private String runLoop(BovinAgent agent, AgentRunContext ctx, Long sessionId, TimeRange tr, int attempt) {
         // rag1 可用时把"意图 + 相似问例"注入 SideInfo:模型拿到少样本锚点,生成口径更稳
         Rag1IntentService rag1 = rag1Intent.getIfAvailable();
         String intentLine = rag1 == null ? "" : "#Intent: " + rag1.sideInfo(rag1.recognize(ctx.question())) + "\n";

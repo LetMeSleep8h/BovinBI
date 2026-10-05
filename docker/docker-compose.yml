@@ -1,5 +1,7 @@
 # BovinBI 全栈定义:backend(含前端页面)+ MySQL 8 + pgvector + python-agent
 # 所有 Dockerfile 与本文件同在 docker/ 目录;一键启停在仓库根:./start-all.sh | ./stop-all.sh
+# LLM Key 配置:cp docker/env.example docker/.env 填入 Key 即点亮双引擎
+# (.env 已 gitignore,绝不入库;不配置则离线模式)
 # 后端容器内经服务名互连(mysql:3306 / pgvector:5432);本机直连用宿主端口(MySQL@3308 / pgvector@5433,
 # 避开本机已装的 3306/5432)
 

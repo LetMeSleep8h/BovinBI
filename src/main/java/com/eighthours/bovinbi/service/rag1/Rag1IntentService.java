@@ -3,6 +3,7 @@ package com.eighthours.bovinbi.service.rag1;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.service.ChitChatHandler;
 import com.eighthours.bovinbi.service.rag.EmbeddingClient;
+import com.eighthours.bovinbi.llm.LlmClient;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;
@@ -23,6 +24,17 @@ public class Rag1IntentService {
     private final EmbeddingClient embedder;
     private final ChitChatHandler chitChatHandler;
     private final BovinProperties.Rag1 cfg;
+    /** 可空:provider=openai 时注入,意图判定升级为 LLM(离线时退回向量召回) */
+    private final LlmClient llmClient;
+
+    /** LLM 判定提示词:一个词的判决,快且省 token */
+    private static final String INTENT_SYSTEM = """
+你是问答系统的意图判别器。判断用户输入是闲聊还是取数:
+- 闲聊:问候、道谢、告别、询问你的身份/能力/用法(如 你能干什么/你是谁/谢谢/在吗),或任何不需要查询数据仓库就能回答的话;
+- 取数:任何需要查数据才能回答的问题(哪怕写得含糊,如 销售额情况/看看牧场)。
+只输出一个词:CHIT_CHAT 或 QUERY。
+""";
+
 
     public Rag1IntentService(VectorStore store, EmbeddingClient embedder,
                              ChitChatHandler chitChatHandler, BovinProperties.Rag1 cfg) {
@@ -30,6 +42,16 @@ public class Rag1IntentService {
         this.embedder = embedder;
         this.chitChatHandler = chitChatHandler;
         this.cfg = cfg;
+        this.llmClient = null;
+    }
+
+    public Rag1IntentService(VectorStore store, EmbeddingClient embedder,
+                             ChitChatHandler chitChatHandler, BovinProperties.Rag1 cfg, LlmClient llmClient) {
+        this.store = store;
+        this.embedder = embedder;
+        this.chitChatHandler = chitChatHandler;
+        this.cfg = cfg;
+        this.llmClient = llmClient;
     }
 
     /** 识别结果:标签 + 置信度 + 相似问例 + 判定来源(rag1=向量 / keyword=关键词兜底 / none) */
@@ -47,6 +69,22 @@ public class Rag1IntentService {
     public IntentResult recognize(String question) {
         if (question == null || question.isBlank()) {
             return IntentResult.unknown();
+        }
+        // LLM 判定优先(配了 Key 即生效):理解任意口语问法,不依赖语料覆盖
+        if (llmClient != null) {
+            try {
+                String verdict = llmClient.chat(INTENT_SYSTEM, question).trim().toUpperCase();
+                if (verdict.contains("CHIT_CHAT")) {
+                    return new IntentResult(IntentLabel.CHIT_CHAT, 1.0, List.of(), "llm");
+                }
+                if (verdict.contains("QUERY")) {
+                    List<VectorStore.Match> m = store.search(embedder.embed(question), cfg.getTopK());
+                    return new IntentResult(IntentLabel.QUERY_LIKE, m.isEmpty() ? 1.0 : m.get(0).score(),
+                            m.stream().limit(2).map(VectorStore.Match::text).toList(), "llm");
+                }
+            } catch (Exception e) {
+                // LLM 判定失败(超时/限流)静默退回向量召回,主链路不受影响
+            }
         }
         List<VectorStore.Match> matches = store.search(embedder.embed(question), cfg.getTopK());
         IntentLabel winner = matches.stream()

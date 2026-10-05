@@ -22,5 +22,7 @@ public enum IntentLabel {
     /** 单指标:总量/均值/计数 */
     METRIC,
     /** 召回置信度不足,不强行分类(主链路按取数问题处理) */
-    UNKNOWN
+    UNKNOWN,
+    /** LLM 判定为取数(置信度取向量召回相似度,仅作参考) */
+    QUERY_LIKE
 }

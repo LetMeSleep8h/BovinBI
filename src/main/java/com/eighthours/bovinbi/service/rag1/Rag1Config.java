@@ -3,6 +3,7 @@ package com.eighthours.bovinbi.service.rag1;
 import com.eighthours.bovinbi.config.BovinProperties;
 import com.eighthours.bovinbi.service.ChitChatHandler;
 import com.eighthours.bovinbi.service.rag.EmbeddingClient;
+import com.eighthours.bovinbi.llm.LlmClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -23,7 +24,8 @@ public class Rag1Config {
     @Bean
     @ConditionalOnProperty(name = "bovin.rag1.enabled", havingValue = "true")
     public Rag1IntentService rag1IntentService(BovinProperties props, EmbeddingClient embedder,
-                                               ChitChatHandler chitChatHandler) {
+                                               ChitChatHandler chitChatHandler,
+                                               org.springframework.beans.factory.ObjectProvider<LlmClient> llm) {
         BovinProperties.Rag1 cfg = props.getRag1();
         if (cfg.getUrl() == null || cfg.getUrl().isBlank()) {
             log.warn("rag1 已启用但未配置 bovin.rag1.url(pgvector),意图识别增强不生效(闲聊回落关键词版)");
@@ -35,6 +37,8 @@ public class Rag1Config {
             return null;
         }
         pg.seedIfEmpty(IntentSeeds.load());
-        return new Rag1IntentService(pg, embedder, chitChatHandler, cfg);
+        // provider=openai 时注入 LlmClient:意图判定升级为 LLM 判别(离线自动退回向量召回)
+        return new Rag1IntentService(pg, embedder, chitChatHandler, cfg,
+                "openai".equalsIgnoreCase(props.getLlm().getProvider()) ? llm.getIfAvailable() : null);
     }
 }

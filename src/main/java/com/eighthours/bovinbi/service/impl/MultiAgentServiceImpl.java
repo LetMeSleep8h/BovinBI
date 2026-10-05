@@ -63,8 +63,8 @@ public class MultiAgentServiceImpl implements MultiAgentService {
             2) 分组维度与问题一致;3) 时间粒度与问题一致(月/天);4) 无编造的表/列/过滤值。
             #输出: 只输出 JSON {"verdict":"pass|fail","reason":"fail 时的一句话原因"},不要输出其他内容。""";
 
-    private static final Pattern RE_START = Pattern.compile("record_date\\s*>=\\s*'(\\d{4}-\\d{2}-\\d{2})'");
-    private static final Pattern RE_END = Pattern.compile("record_date\\s*<\\s*'(\\d{4}-\\d{2}-\\d{2})'");
+    private static final Pattern RE_START = Pattern.compile(">=\\s*'(\\d{4}-\\d{2}-\\d{2})'");
+    private static final Pattern RE_END = Pattern.compile("<\\s*'(\\d{4}-\\d{2}-\\d{2})'");
 
     @Override
     public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
@@ -180,7 +180,7 @@ public class MultiAgentServiceImpl implements MultiAgentService {
         String end = me.find() ? me.group(1) : null;
         if (tr == null) {
             return (start != null || end != null)
-                    ? "问题未指定时间,SQL 不应添加 record_date 时间过滤" : null;
+                    ? "问题未指定时间,SQL 不应添加时间过滤" : null;
         }
         String es = TimeRange.F.format(tr.start());
         String ee = TimeRange.F.format(tr.endExclusive());

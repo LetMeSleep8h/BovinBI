@@ -21,8 +21,8 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class GuardReviewNode implements AgentNode {
 
-    private static final Pattern RE_START = Pattern.compile("record_date\\s*>=\\s*'(\\d{4}-\\d{2}-\\d{2})'");
-    private static final Pattern RE_END = Pattern.compile("record_date\\s*<\\s*'(\\d{4}-\\d{2}-\\d{2})'");
+    private static final Pattern RE_START = Pattern.compile(">=\\s*'(\\d{4}-\\d{2}-\\d{2})'");
+    private static final Pattern RE_END = Pattern.compile("<\\s*'(\\d{4}-\\d{2}-\\d{2})'");
 
     private final SqlGuard sqlGuard;
 
@@ -58,7 +58,7 @@ public class GuardReviewNode implements AgentNode {
         String end = me.find() ? me.group(1) : null;
         if (tr == null) {
             return (start != null || end != null)
-                    ? "问题未指定时间,SQL 不应添加 record_date 时间过滤" : null;
+                    ? "问题未指定时间,SQL 不应添加时间过滤" : null;
         }
         String es = TimeRange.F.format(tr.start());
         String ee = TimeRange.F.format(tr.endExclusive());

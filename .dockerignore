@@ -1,4 +1,4 @@
-# 构建上下文瘦身:镜像构建只需要 pom.xml + src
+# 构建上下文瘦身(backend 镜像只需要 pom+src+docker/maven-settings.xml)
 target
 data
 .git
@@ -10,7 +10,5 @@ eval
 eval-runs
 eval-report.md
 scripts
-docker
-!docker/maven-settings.xml
 node_modules
 *.md

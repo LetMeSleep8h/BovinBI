@@ -1,0 +1,1155 @@
+[
+ {
+  "id": "A01",
+  "cat": "A口语改写",
+  "q": "最近一年奶牛产奶量按月怎么变化的?",
+  "kind": "trend",
+  "bucket": "month",
+  "expect": {
+   "2025-09": 73808.7,
+   "2025-10": 73986.4,
+   "2025-11": 74100.8,
+   "2025-12": 77476.4,
+   "2026-01": 77890.7,
+   "2026-02": 78144.3,
+   "2026-03": 73216.4,
+   "2026-04": 73686.7,
+   "2026-05": 74661.5,
+   "2026-06": 66280.3,
+   "2026-07": 66040.1,
+   "2026-08": 65544.4
+  },
+  "period": [
+   "2025-09-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "12 个桶全部命中",
+  "took": 311,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m') AS 月份, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "A02",
+  "cat": "A口语改写",
+  "q": "帮我统计一下今年一共挤了多少奶",
+  "kind": "scalar",
+  "expect": 575464.4,
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 7,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "A03",
+  "cat": "A口语改写",
+  "q": "哪五个牧场的奶量最多?给我排个序",
+  "kind": "top",
+  "expect": [
+   [
+    "呼和浩特金山牧场",
+    213279.8
+   ],
+   [
+    "宁夏贺兰牧场",
+    195834.1
+   ],
+   [
+    "陕西渭南牧场",
+    142958.7
+   ],
+   [
+    "河北张家口牧场",
+    127913.7
+   ],
+   [
+    "黑龙江绥化牧场",
+    122227.2
+   ]
+  ],
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "WRONG",
+  "detail": "第1名期望 呼和浩特金山牧场 实得 874836.7;缺第2名 宁夏贺兰牧场;缺第3名 陕西渭南牧场;缺第4名 河北张家口牧场;缺第5名 黑龙江绥化牧场 返回:{'产奶量': 874836.7}",
+  "took": 51,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id LIMIT 1000"
+ },
+ {
+  "id": "A04",
+  "cat": "A口语改写",
+  "q": "上个月各个品种分别产了多少奶?",
+  "kind": "group",
+  "dim": "breed",
+  "expect": {
+   "荷斯坦": 49521.5,
+   "娟姗": 8010.0,
+   "西门塔尔": 8012.9
+  },
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "3 个桶全部命中",
+  "took": 26,
+  "engine": "RULE",
+  "sql": "SELECT c.breed AS 品种, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "A05",
+  "cat": "A口语改写",
+  "q": "给我看看上个月牧场之间的乳脂率差距",
+  "kind": "group",
+  "dim": "farm",
+  "expect": {
+   "呼和浩特金山牧场": 4.2396,
+   "宁夏贺兰牧场": 4.2745,
+   "陕西渭南牧场": 4.2169,
+   "河北张家口牧场": 4.2679,
+   "黑龙江绥化牧场": 4.2218,
+   "江苏盐城牧场": 4.2513
+  },
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "返回行中无可用数值",
+  "took": 15,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.fat_rate), 2) AS 乳脂率 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' LIMIT 1000"
+ },
+ {
+  "id": "A06",
+  "cat": "A口语改写",
+  "q": "最近半年每天产奶量走势怎么样?",
+  "kind": "trend",
+  "bucket": "day",
+  "expect": {
+   "2026-03-05": 24430.6,
+   "2026-03-15": 24362.8,
+   "2026-03-25": 24423.0,
+   "2026-04-05": 24543.1,
+   "2026-04-15": 24537.9,
+   "2026-04-25": 24605.7,
+   "2026-05-05": 24901.8,
+   "2026-05-15": 24883.1,
+   "2026-05-25": 24876.6,
+   "2026-06-05": 22081.3,
+   "2026-06-15": 22138.8,
+   "2026-06-25": 22060.2,
+   "2026-07-05": 22008.2,
+   "2026-07-15": 21987.0,
+   "2026-07-25": 22044.9,
+   "2026-08-05": 21867.5,
+   "2026-08-15": 21817.7,
+   "2026-08-25": 21859.2
+  },
+  "period": [
+   "2026-03-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "18 个桶全部命中(另有疑似超范围桶:['20250905', '20250915', '20250925', '20251005', '20251015', '20251025'])",
+  "took": 109,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m-%d') AS 日期, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "A07",
+  "cat": "A口语改写",
+  "q": "今年奶牛平均一次能挤多少奶?",
+  "kind": "scalar",
+  "expect": 23.3359,
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 8,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "A08",
+  "cat": "A口语改写",
+  "q": "现在牛群的乳蛋白率平均水平如何?",
+  "kind": "scalar",
+  "expect": 3.3767,
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 3.3767",
+  "took": 41,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.protein_rate), 2) AS 乳蛋白率 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id LIMIT 1000"
+ },
+ {
+  "id": "A09",
+  "cat": "A口语改写",
+  "q": "上个月有多少头牛参加了挤奶?",
+  "kind": "scalar",
+  "expect": 1028,
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 6,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "A10",
+  "cat": "A口语改写",
+  "q": "各个地区都有多少个牧场?",
+  "kind": "group",
+  "dim": "region",
+  "expect": {
+   "华北": 2,
+   "西北": 2,
+   "东北": 1,
+   "华东": 1
+  },
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "WRONG",
+  "detail": "桶值不符 {} / 缺桶 ['华北', '西北', '东北', '华东'] / 多桶 ['呼和浩特金山牧场', '宁夏贺兰牧场', '陕西渭南牧场', '河北张家口牧场', '黑龙江绥化牧场', '江苏盐城牧场'] 返回:{'牧场': '呼和浩特金山牧场', '产奶量': 213279.8} ; {'牧场': '宁夏贺兰牧场', '产奶量': 195834.1}",
+  "took": 37,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "A11",
+  "cat": "A口语改写",
+  "q": "产奶量前十的牛舍是哪些?",
+  "kind": "top",
+  "expect": [
+   [
+    "牛舍F",
+    162455.2
+   ],
+   [
+    "牛舍D",
+    157503.5
+   ],
+   [
+    "牛舍C",
+    149369.1
+   ],
+   [
+    "牛舍A",
+    142179.5
+   ],
+   [
+    "牛舍E",
+    132398.1
+   ],
+   [
+    "牛舍B",
+    130931.3
+   ]
+  ],
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "WRONG",
+  "detail": "第1名期望 牛舍F 实得 874836.7;缺第2名 牛舍D;缺第3名 牛舍C;缺第4名 牛舍A;缺第5名 牛舍E;缺第6名 牛舍B 返回:{'产奶量': 874836.7}",
+  "took": 34,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id LIMIT 1000"
+ },
+ {
+  "id": "A12",
+  "cat": "A口语改写",
+  "q": "上个月泌乳牛头数按牧场分一下",
+  "kind": "group",
+  "dim": "farm",
+  "expect": {
+   "呼和浩特金山牧场": 241,
+   "宁夏贺兰牧场": 232,
+   "陕西渭南牧场": 175,
+   "河北张家口牧场": 148,
+   "黑龙江绥化牧场": 139,
+   "江苏盐城牧场": 93
+  },
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "6 个桶全部命中",
+  "took": 18,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, COUNT(DISTINCT m.cattle_id) AS 泌乳牛数 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "A13",
+  "cat": "A口语改写",
+  "q": "今年跟去年比,总奶量多了还是少了?",
+  "kind": "nums",
+  "expect": [
+   575464.4,
+   299372.3
+  ],
+  "note": "今年=575464.4 去年=299372.3,两者都出现即算如实作答",
+  "verdict": "WRONG",
+  "detail": "缺少真值数值 [575464.4],返回:{'产奶量': 299372.3}",
+  "took": 23,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2025-01-01' AND m.record_date < '2026-01-01' LIMIT 1000"
+ },
+ {
+  "id": "A14",
+  "cat": "A口语改写",
+  "q": "荷斯坦牛占了泌乳牛的多大比例?",
+  "kind": "any_num",
+  "expect": [
+   70.08,
+   0.7008
+  ],
+  "note": "真值=70.08%,接受百分数或小数两种口径",
+  "verdict": "WRONG",
+  "detail": "期望 [70.08, 0.7008] 之一,返回:{'泌乳牛数': 841}",
+  "took": 44,
+  "engine": "RULE",
+  "sql": "SELECT COUNT(DISTINCT m.cattle_id) AS 泌乳牛数 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE c.breed = '荷斯坦' LIMIT 1000"
+ },
+ {
+  "id": "B01",
+  "cat": "B绝对时间",
+  "q": "2026年3月总共挤了多少奶?",
+  "kind": "scalar",
+  "expect": 73216.4,
+  "period": [
+   "2026-03-01",
+   "2026-04-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 5,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "B02",
+  "cat": "B绝对时间",
+  "q": "2025年12月各牧场的产奶量",
+  "kind": "group",
+  "dim": "farm",
+  "expect": {
+   "呼和浩特金山牧场": 18832.8,
+   "宁夏贺兰牧场": 17389.7,
+   "陕西渭南牧场": 12827.5,
+   "河北张家口牧场": 11286.7,
+   "黑龙江绥化牧场": 10652.6,
+   "江苏盐城牧场": 6487.1
+  },
+  "period": [
+   "2025-12-01",
+   "2026-01-01"
+  ],
+  "verdict": "PASS",
+  "detail": "6 个桶全部命中",
+  "took": 13,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2025-12-01' AND m.record_date < '2026-01-01' GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "B03",
+  "cat": "B绝对时间",
+  "q": "2026年1月到3月每月产奶量走势",
+  "kind": "trend",
+  "bucket": "month",
+  "expect": {
+   "2026-01": 77890.7,
+   "2026-02": 78144.3,
+   "2026-03": 73216.4
+  },
+  "period": [
+   "2026-01-01",
+   "2026-04-01"
+  ],
+  "verdict": "WRONG",
+  "detail": "桶值不符 {} / 缺桶 ['202602', '202603'] / 多桶 [] 返回:{'月份': '2026-01', '产奶量': 77890.7}",
+  "took": 17,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m') AS 月份, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2026-02-01' GROUP BY 1 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "B04",
+  "cat": "B绝对时间",
+  "q": "2026年第一季度的平均乳脂率",
+  "kind": "scalar",
+  "expect": 4.1702,
+  "period": [
+   "2026-01-01",
+   "2026-04-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 4.1702",
+  "took": 14,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.fat_rate), 2) AS 乳脂率 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2026-04-01' LIMIT 1000"
+ },
+ {
+  "id": "B05",
+  "cat": "B绝对时间",
+  "q": "2025年9月有多少头牛在挤奶?",
+  "kind": "scalar",
+  "expect": 1024,
+  "period": [
+   "2025-09-01",
+   "2025-10-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 5,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "B06",
+  "cat": "B绝对时间",
+  "q": "2026年6月娟姗牛的产奶量",
+  "kind": "scalar",
+  "expect": 7809.6,
+  "period": [
+   "2026-06-01",
+   "2026-07-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 7809.6",
+  "took": 13,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-06-01' AND m.record_date < '2026-07-01' AND c.breed = '娟姗' LIMIT 1000"
+ },
+ {
+  "id": "B07",
+  "cat": "B绝对时间",
+  "q": "2025年10月到2026年2月每月泌乳牛数变化",
+  "kind": "trend",
+  "bucket": "month",
+  "expect": {
+   "2025-10": 1030,
+   "2025-11": 1033,
+   "2025-12": 1021,
+   "2026-01": 1023,
+   "2026-02": 1020
+  },
+  "period": [
+   "2025-10-01",
+   "2026-03-01"
+  ],
+  "verdict": "WRONG",
+  "detail": "桶值不符 {} / 缺桶 ['202511', '202512', '202601', '202602'] / 多桶 [] 返回:{'月份': '2025-10', '泌乳牛数': 1030}",
+  "took": 17,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m') AS 月份, COUNT(DISTINCT m.cattle_id) AS 泌乳牛数 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2025-10-01' AND m.record_date < '2025-11-01' GROUP BY 1 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "B08",
+  "cat": "B绝对时间",
+  "q": "2026年上半年平均单产",
+  "kind": "scalar",
+  "expect": 24.0507,
+  "period": [
+   "2026-01-01",
+   "2026-07-01"
+  ],
+  "verdict": "WRONG",
+  "detail": "期望 24.0507,返回:{'平均单产': 23.34}",
+  "took": 22,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.milk_yield), 2) AS 平均单产 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2027-01-01' LIMIT 1000"
+ },
+ {
+  "id": "B09",
+  "cat": "B绝对时间",
+  "q": "2025年11月西北地区的产奶量",
+  "kind": "scalar",
+  "expect": 28686.0,
+  "period": [
+   "2025-11-01",
+   "2025-12-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 28686.0",
+  "took": 12,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2025-11-01' AND m.record_date < '2025-12-01' AND f.region = '西北' LIMIT 1000"
+ },
+ {
+  "id": "B10",
+  "cat": "B绝对时间",
+  "q": "2026年7月和8月哪个月奶量更高?",
+  "kind": "nums",
+  "expect": [
+   66040.1,
+   65544.4
+  ],
+  "note": "7月更高(7月=66040.1, 8月=65544.4);两个月数值都出现即算如实作答",
+  "verdict": "WRONG",
+  "detail": "缺少真值数值 [65544.4],返回:{'产奶量': 66040.1}",
+  "took": 13,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-07-01' AND m.record_date < '2026-08-01' LIMIT 1000"
+ },
+ {
+  "id": "C01",
+  "cat": "C复合条件",
+  "q": "西北地区产奶量最高的牧场是哪个?",
+  "kind": "top",
+  "expect": [
+   [
+    "宁夏贺兰牧场",
+    195834.1
+   ]
+  ],
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "PASS",
+  "detail": "前 1 名次序与真值一致",
+  "took": 29,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE f.region = '西北' GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+ },
+ {
+  "id": "C02",
+  "cat": "C复合条件",
+  "q": "大型牧场今年一共产了多少奶?",
+  "kind": "scalar",
+  "expect": 268932.8,
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 268932.8",
+  "took": 22,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2027-01-01' AND f.scale = '大型' LIMIT 1000"
+ },
+ {
+  "id": "C03",
+  "cat": "C复合条件",
+  "q": "荷斯坦牛今年的平均乳脂率",
+  "kind": "scalar",
+  "expect": 3.9366,
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 3.9366",
+  "took": 23,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.fat_rate), 2) AS 乳脂率 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2027-01-01' AND c.breed = '荷斯坦' LIMIT 1000"
+ },
+ {
+  "id": "C04",
+  "cat": "C复合条件",
+  "q": "牛舍C的牛上个月产了多少奶?",
+  "kind": "scalar",
+  "expect": 11032.8,
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 6,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "C05",
+  "cat": "C复合条件",
+  "q": "泌乳初期的牛平均单产是多少?",
+  "kind": "scalar",
+  "expect": 24.5535,
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 24.5535",
+  "took": 13,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.milk_yield), 2) AS 平均单产 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.lactation_stage = '泌乳初期' LIMIT 1000"
+ },
+ {
+  "id": "C06",
+  "cat": "C复合条件",
+  "q": "中型牧场里奶量最多的是哪个?",
+  "kind": "top",
+  "expect": [
+   [
+    "陕西渭南牧场",
+    142958.7
+   ]
+  ],
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "WRONG",
+  "detail": "第1名期望 陕西渭南牧场 实得 393099.6 返回:{'产奶量': 393099.6}",
+  "took": 26,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE f.scale = '中型' LIMIT 1000"
+ },
+ {
+  "id": "C07",
+  "cat": "C复合条件",
+  "q": "西门塔尔牛上个月的产奶量和平均乳脂率",
+  "kind": "nums",
+  "expect": [
+   8012.9,
+   4.4192
+  ],
+  "verdict": "WRONG",
+  "detail": "缺少真值数值 [8012.9],返回:{'乳脂率': 4.42}",
+  "took": 11,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.fat_rate), 2) AS 乳脂率 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' AND c.breed = '西门塔尔' LIMIT 1000"
+ },
+ {
+  "id": "C08",
+  "cat": "C复合条件",
+  "q": "3胎及以上的牛今年产了多少奶?",
+  "kind": "scalar",
+  "expect": 264418.2,
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 5,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "C09",
+  "cat": "C复合条件",
+  "q": "华北地区各牛舍的产奶量",
+  "kind": "group",
+  "dim": "barn",
+  "expect": {
+   "牛舍C": 66333.2,
+   "牛舍F": 53972.5,
+   "牛舍D": 69334.9,
+   "牛舍E": 44510.6,
+   "牛舍B": 54381.7,
+   "牛舍A": 52660.6
+  },
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "WRONG",
+  "detail": "桶值不符 {} / 缺桶 ['牛舍C', '牛舍F', '牛舍D', '牛舍E', '牛舍B', '牛舍A'] / 多桶 ['华北'] 返回:{'地区': '华北', '产奶量': 341193.5}",
+  "took": 29,
+  "engine": "RULE",
+  "sql": "SELECT f.region AS 地区, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE f.region = '华北' GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "C10",
+  "cat": "C复合条件",
+  "q": "江苏盐城牧场最近三个月的产奶量趋势",
+  "kind": "trend",
+  "bucket": "month",
+  "expect": {
+   "2026-06": 5425.3,
+   "2026-07": 5148.4,
+   "2026-08": 5483.0
+  },
+  "period": [
+   "2026-06-01",
+   "2026-09-01"
+  ],
+  "verdict": "WRONG",
+  "detail": "桶值不符 {'202606': 9449.2, '202607': 9387.7, '202608': 8604.7} / 缺桶 [] / 多桶 ['202509', '202510', '202511', '202512', '202601', '202602'] 返回:{'月份': '2025-09', '牧场': '呼和浩特金山牧场', '产奶量': 18720.1} ; {'月份': '2025-09', '牧场': '宁夏贺兰牧场', '产奶量': 15994.8}",
+  "took": 68,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m') AS 月份, f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1, 2 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "D01",
+  "cat": "D对比分析",
+  "q": "哪个牧场6月比5月产奶量下降最多?",
+  "kind": "label",
+  "expect": "呼和浩特金山牧场",
+  "note": "下降量=2159.0",
+  "verdict": "WRONG",
+  "detail": "期望标签 呼和浩特金山牧场,返回:{'产奶量': 66280.3}",
+  "took": 15,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-06-01' AND m.record_date < '2026-07-01' LIMIT 1000"
+ },
+ {
+  "id": "D02",
+  "cat": "D对比分析",
+  "q": "2026年二季度比一季度产奶量增长了多少?",
+  "kind": "nums",
+  "expect": [
+   229251.4,
+   214628.5
+  ],
+  "note": "增量=-14622.9;两季数值都出现即算如实作答",
+  "verdict": "WRONG",
+  "detail": "缺少真值数值 [229251.4],返回:{'产奶量': 214628.5}",
+  "took": 13,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-04-01' AND m.record_date < '2026-07-01' LIMIT 1000"
+ },
+ {
+  "id": "D03",
+  "cat": "D对比分析",
+  "q": "产奶量最高的品种比最低的品种多多少?",
+  "kind": "nums",
+  "expect": [
+   662090.3,
+   106037.6
+  ],
+  "note": "{'荷斯坦': 662090, '娟姗': 106038, '西门塔尔': 106709}",
+  "verdict": "PASS",
+  "detail": "全部 2 个真值数值均出现",
+  "took": 26,
+  "engine": "RULE",
+  "sql": "SELECT c.breed AS 品种, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 2 ASC LIMIT 10"
+ },
+ {
+  "id": "D04",
+  "cat": "D对比分析",
+  "q": "上个月乳脂率最低的牧场是哪家?",
+  "kind": "top",
+  "expect": [
+   [
+    "陕西渭南牧场",
+    4.2169
+   ]
+  ],
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "前 1 名次序与真值一致",
+  "took": 12,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(AVG(m.fat_rate), 2) AS 乳脂率 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' GROUP BY 1 ORDER BY 2 ASC LIMIT 10"
+ },
+ {
+  "id": "D05",
+  "cat": "D对比分析",
+  "q": "有没有牧场最近两个月产奶量连续下滑?",
+  "kind": "labels",
+  "expect": [
+   "河北张家口牧场",
+   "黑龙江绥化牧场"
+  ],
+  "verdict": "WRONG",
+  "detail": "缺少标签 ['河北张家口牧场', '黑龙江绥化牧场'],返回:{'产奶量': 874836.7}",
+  "took": 21,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id LIMIT 1000"
+ },
+ {
+  "id": "D06",
+  "cat": "D对比分析",
+  "q": "今年平均单产比去年高吗?",
+  "kind": "nums",
+  "expect": [
+   23.3359,
+   24.2918
+  ],
+  "verdict": "WRONG",
+  "detail": "缺少真值数值 [23.3359],返回:{'平均单产': 24.29}",
+  "took": 14,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.milk_yield), 2) AS 平均单产 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2025-01-01' AND m.record_date < '2026-01-01' LIMIT 1000"
+ },
+ {
+  "id": "D07",
+  "cat": "D对比分析",
+  "q": "上个月产奶量牧场的完整排名给我一份",
+  "kind": "top",
+  "expect": [
+   [
+    "呼和浩特金山牧场",
+    16085.4
+   ],
+   [
+    "宁夏贺兰牧场",
+    15120.5
+   ],
+   [
+    "陕西渭南牧场",
+    11131.7
+   ],
+   [
+    "河北张家口牧场",
+    9119.1
+   ],
+   [
+    "黑龙江绥化牧场",
+    8604.7
+   ],
+   [
+    "江苏盐城牧场",
+    5483.0
+   ]
+  ],
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "WRONG",
+  "detail": "第1名期望 呼和浩特金山牧场 实得 65544.4;缺第2名 宁夏贺兰牧场;缺第3名 陕西渭南牧场;缺第4名 河北张家口牧场;缺第5名 黑龙江绥化牧场;缺第6名 江苏盐城牧场 返回:{'产奶量': 65544.4}",
+  "took": 11,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' LIMIT 1000"
+ },
+ {
+  "id": "D08",
+  "cat": "D对比分析",
+  "q": "单产最高的牛舍和最低的牛舍差多少?",
+  "kind": "nums",
+  "expect": [
+   23.9185,
+   23.2155
+  ],
+  "note": "{'牛舍A': 23.86, '牛舍B': 23.48, '牛舍C': 23.86, '牛舍D': 23.92, '牛舍E': 23.22, '牛舍F': 23.54}",
+  "verdict": "PASS",
+  "detail": "全部 2 个真值数值均出现",
+  "took": 21,
+  "engine": "RULE",
+  "sql": "SELECT c.barn AS 牛舍, ROUND(AVG(m.milk_yield), 2) AS 平均单产 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 2 ASC LIMIT 10"
+ },
+ {
+  "id": "E01",
+  "cat": "E业务黑话",
+  "q": "上个月的奶量",
+  "kind": "scalar",
+  "expect": 65544.4,
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 65544.4",
+  "took": 10,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' LIMIT 1000"
+ },
+ {
+  "id": "E02",
+  "cat": "E业务黑话",
+  "q": "今年挤奶量",
+  "kind": "scalar",
+  "expect": 575464.4,
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 575464.4",
+  "took": 20,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2027-01-01' LIMIT 1000"
+ },
+ {
+  "id": "E03",
+  "cat": "E业务黑话",
+  "q": "牛群里现在一共有多少头产奶牛?",
+  "kind": "scalar",
+  "expect": 1200,
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "WRONG",
+  "detail": "期望 1200,返回:{'产奶量': 874836.7}",
+  "took": 22,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id LIMIT 1000"
+ },
+ {
+  "id": "E04",
+  "cat": "E业务黑话",
+  "q": "上月奶质怎么样?乳脂和乳蛋白的平均值",
+  "kind": "nums",
+  "expect": [
+   4.2463,
+   3.3939
+  ],
+  "verdict": "HONEST",
+  "detail": "未回答(空结果或降级)",
+  "took": 4,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "E05",
+  "cat": "E业务黑话",
+  "q": "各牧场牛头数对比",
+  "kind": "group",
+  "dim": "farm",
+  "expect": {
+   "呼和浩特金山牧场": 280,
+   "宁夏贺兰牧场": 260,
+   "陕西渭南牧场": 200,
+   "河北张家口牧场": 180,
+   "黑龙江绥化牧场": 170,
+   "江苏盐城牧场": 110
+  },
+  "period": [
+   "2000-01-01",
+   "2999-12-31"
+  ],
+  "verdict": "PASS",
+  "detail": "6 个桶全部命中",
+  "took": 24,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, COUNT(DISTINCT m.cattle_id) AS 泌乳牛数 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "E06",
+  "cat": "E业务黑话",
+  "q": "最近三个月奶量走势",
+  "kind": "trend",
+  "bucket": "month",
+  "expect": {
+   "2026-06": 66280.3,
+   "2026-07": 66040.1,
+   "2026-08": 65544.4
+  },
+  "period": [
+   "2026-06-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "3 个桶全部命中(另有疑似超范围桶:['202509', '202510', '202511', '202512', '202601', '202602'])",
+  "took": 35,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m') AS 月份, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "F01",
+  "cat": "F负样本",
+  "q": "各牧场上个月的饲料成本明细",
+  "kind": "no_data",
+  "verdict": "FABRICATE",
+  "detail": "负样本却返回了数值行:{'牧场': '呼和浩特金山牧场', '产奶量': 16085.4} ; {'牧场': '宁夏贺兰牧场', '产奶量': 15120.5}",
+  "took": 23,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "F02",
+  "cat": "F负样本",
+  "q": "哪个牧场的员工工资最高?",
+  "kind": "no_data",
+  "verdict": "FABRICATE",
+  "detail": "负样本却返回了数值行:{'牧场': '呼和浩特金山牧场', '产奶量': 213279.8} ; {'牧场': '宁夏贺兰牧场', '产奶量': 195834.1}",
+  "took": 23,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+ },
+ {
+  "id": "F03",
+  "cat": "F负样本",
+  "q": "你好呀,今天天气怎么样?",
+  "kind": "no_data",
+  "verdict": "PASS",
+  "detail": "未编造(空/降级)",
+  "took": 4,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "F04",
+  "cat": "F负样本",
+  "q": "帮我把产奶量最低的牛从系统里删掉",
+  "kind": "no_data",
+  "verdict": "FABRICATE",
+  "detail": "负样本却返回了数值行:{'牧场': '江苏盐城牧场', '产奶量': 72623.2} ; {'牧场': '黑龙江绥化牧场', '产奶量': 122227.2}",
+  "took": 22,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 2 ASC LIMIT 10"
+ },
+ {
+  "id": "F05",
+  "cat": "F负样本",
+  "q": "2026年10月的计划产奶量是多少?",
+  "kind": "empty_ok",
+  "verdict": "PASS",
+  "detail": "空/0,符合真值",
+  "took": 12,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-10-01' AND m.record_date < '2026-11-01' LIMIT 1000"
+ },
+ {
+  "id": "F06",
+  "cat": "F负样本",
+  "q": "娟姗牛和荷斯坦牛哪个更漂亮?",
+  "kind": "no_data",
+  "verdict": "FABRICATE",
+  "detail": "负样本却返回了数值行:{'产奶量': 662090.3}",
+  "took": 23,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE c.breed = '荷斯坦' LIMIT 1000"
+ },
+ {
+  "id": "F07",
+  "cat": "F负样本",
+  "q": "统计一下各牧场兽医出诊次数",
+  "kind": "no_data",
+  "verdict": "FABRICATE",
+  "detail": "负样本却返回了数值行:{'牧场': '呼和浩特金山牧场', '产奶量': 213279.8} ; {'牧场': '宁夏贺兰牧场', '产奶量': 195834.1}",
+  "took": 23,
+  "engine": "RULE",
+  "sql": "SELECT f.farm_name AS 牧场, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ },
+ {
+  "id": "F08",
+  "cat": "F负样本",
+  "q": "昨天一共挤了多少奶?",
+  "kind": "empty_ok",
+  "verdict": "PASS",
+  "detail": "空/0,符合真值",
+  "took": 3,
+  "engine": "RULE",
+  "sql": ""
+ },
+ {
+  "id": "G01",
+  "cat": "G相对口径",
+  "q": "上个月总产奶量",
+  "kind": "scalar",
+  "expect": 65544.4,
+  "period": [
+   "2026-08-01",
+   "2026-09-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 65544.4",
+  "took": 9,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-08-01' AND m.record_date < '2026-09-01' LIMIT 1000"
+ },
+ {
+  "id": "G02",
+  "cat": "G相对口径",
+  "q": "今年总产奶量",
+  "kind": "scalar",
+  "expect": 575464.4,
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 575464.4",
+  "took": 20,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2027-01-01' LIMIT 1000"
+ },
+ {
+  "id": "G03",
+  "cat": "G相对口径",
+  "q": "去年平均乳脂率",
+  "kind": "scalar",
+  "expect": 4.1828,
+  "period": [
+   "2025-01-01",
+   "2026-01-01"
+  ],
+  "verdict": "PASS",
+  "detail": "命中真值 4.1828",
+  "took": 23,
+  "engine": "RULE",
+  "sql": "SELECT ROUND(AVG(m.fat_rate), 2) AS 乳脂率 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2025-01-01' AND m.record_date < '2026-01-01' LIMIT 1000"
+ },
+ {
+  "id": "G04",
+  "cat": "G相对口径",
+  "q": "近6个月每月产奶量趋势",
+  "kind": "trend",
+  "bucket": "month",
+  "expect": {
+   "2026-03": 73216.4,
+   "2026-04": 73686.7,
+   "2026-05": 74661.5,
+   "2026-06": 66280.3,
+   "2026-07": 66040.1,
+   "2026-08": 65544.4
+  },
+  "period": [
+   "2026-03-01",
+   "2026-09-01"
+  ],
+  "verdict": "WRONG",
+  "detail": "桶值不符 {} / 缺桶 ['202603'] / 多桶 [] 返回:{'月份': '2026-04', '产奶量': 73686.7} ; {'月份': '2026-05', '产奶量': 74661.5}",
+  "took": 32,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m') AS 月份, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-04-01' AND m.record_date < '2026-09-29' GROUP BY 1 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "G05",
+  "cat": "G相对口径",
+  "q": "近7天每天产奶量",
+  "kind": "empty_ok",
+  "bucket": "day",
+  "expect": {},
+  "note": "真值区间内无任何记录,空/0 才是对的",
+  "period": [
+   "2026-09-22",
+   "2026-09-29"
+  ],
+  "verdict": "PASS",
+  "detail": "空/0,符合真值",
+  "took": 12,
+  "engine": "RULE",
+  "sql": "SELECT DATE_FORMAT(m.record_date, '%Y-%m-%d') AS 日期, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-09-22' AND m.record_date < '2026-09-29' GROUP BY 1 ORDER BY 1 LIMIT 1000"
+ },
+ {
+  "id": "G06",
+  "cat": "G相对口径",
+  "q": "今年各季度的产奶量",
+  "kind": "group",
+  "dim": "quarter",
+  "expect": {
+   "1": 229251.4,
+   "2": 214628.5,
+   "3": 131584.5
+  },
+  "period": [
+   "2026-01-01",
+   "2027-01-01"
+  ],
+  "verdict": "PASS",
+  "detail": "3 个桶全部命中",
+  "took": 29,
+  "engine": "RULE",
+  "sql": "SELECT CONCAT(YEAR(m.record_date), '-Q', QUARTER(m.record_date)) AS 季度, ROUND(SUM(m.milk_yield), 2) AS 产奶量 FROM dwh_fact_milk m LEFT JOIN dwh_dim_cattle c ON m.cattle_id = c.id LEFT JOIN dwh_dim_farm f ON m.farm_id = f.id WHERE m.record_date >= '2026-01-01' AND m.record_date < '2027-01-01' GROUP BY 1 ORDER BY 2 DESC LIMIT 1000"
+ }
+]

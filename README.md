@@ -67,8 +67,8 @@
 
 ### 方式一:一键启停全栈(默认,推荐演示用)
 ```bash
-./docker/start-all.sh    # backend(含前端页面)+ MySQL + pgvector + python-agent,健康检查通过才返回
-./docker/stop-all.sh     # 一键全停;--purge 连数据卷一起清空
+./start-all.sh    # 仓库根执行:backend(含前端页面)+ MySQL + pgvector + python-agent,健康检查通过才返回
+./stop-all.sh     # 一键全停;--purge 连数据卷一起清空(所有 Docker 定义集中在 docker/ 目录)
 # 就绪后: http://localhost:8080 (admin/bovin123),再次启动仅需 ~10 秒(数据卷保留)
 ```
 

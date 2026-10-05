@@ -1,5 +1,5 @@
-# BovinBI 存储栈 + 后端:MySQL 8(平台库+数仓)+ PostgreSQL/pgvector(意图向量库)+ 后端(含前端静态页)
-# 一键启停:./docker/start-all.sh  |  ./docker/stop-all.sh
+# BovinBI 全栈定义:backend(含前端页面)+ MySQL 8 + pgvector + python-agent
+# 所有 Dockerfile 与本文件同在 docker/ 目录;一键启停在仓库根:./start-all.sh | ./stop-all.sh
 # 后端容器内经服务名互连(mysql:3306 / pgvector:5432);本机直连用宿主端口(MySQL@3308 / pgvector@5433,
 # 避开本机已装的 3306/5432)
 
@@ -50,7 +50,7 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: docker/backend.Dockerfile
     container_name: bovinbi-backend
     restart: unless-stopped
     ports:
@@ -86,8 +86,8 @@ services:
   # AI 能力层:Python Agent(经 MCP 回环调用 backend 的工具,不直连数据库)
   python-agent:
     build:
-      context: ../python-agent
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/python-agent.Dockerfile
     container_name: bovinbi-python-agent
     restart: unless-stopped
     ports:

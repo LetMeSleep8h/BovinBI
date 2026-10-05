@@ -46,6 +46,7 @@ public class ChatService {
     private final ChatQueryService chatQueryService;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
+    private final org.springframework.beans.factory.ObjectProvider<com.eighthours.bovinbi.service.rag1.Rag1IntentService> rag1Intent;
 
     /** 逐步确认模式的等待上限:超时视为拒绝(不无限挂起连接与线程) */
     private static final long APPROVAL_TIMEOUT_MS = 120_000;
@@ -190,6 +191,30 @@ public class ChatService {
         }
     }
 
+    /** 闲聊判定:rag1 向量识别优先(无数据信号词才可判),关键词版兜底 */
+    private boolean isChitChat(String question) {
+        var rag1 = rag1Intent.getIfAvailable();
+        if (rag1 != null && rag1.recognize(question).chitChat()) {
+            return true;
+        }
+        return new com.eighthours.bovinbi.service.ChitChatHandler().isChitChat(question);
+    }
+
+    /** 闲聊回复:能力介绍随当前数据集语境,顺带展示 Python/Java 双引擎 */
+    private String chitChatAnswer(String question) {
+        if (question.contains("谢谢") || question.contains("多谢") || question.contains("感谢")) {
+            return "不客气!还想看什么数据,直接问就行。";
+        }
+        if (question.contains("再见") || question.contains("拜拜")) {
+            return "再见!数据随时在这里等你。";
+        }
+        return "我是 BovinBI 数据分析助手,能把你的一句自然语言变成 SQL 并出图表:"
+                + "趋势 / TopN 排行 / 占比构成 / 分组统计 / 单值指标都行。"
+                + "上方可以切换 ☕Java 引擎 与 🐍Python Agent 两种 AI 引擎;"
+                + "「查询历史」页还能看你的每日 token 用量。"
+                + "试试:销售额Top10商品类目 / 各客户州销售额 / 每月销售额趋势。";
+    }
+
     private String contentOf(AnswerPayload p) {
         if (p.isFallback()) {
             return p.getFallbackHint() == null ? "查询失败" : p.getFallbackHint();
@@ -201,6 +226,12 @@ public class ChatService {
     private MessageVO runAsk(Long sessionId, String question, long queryId, String engine) {
         TraceHub.publish(queryId, "会话校验", "校验会话归属与数据集", true);
         ChatSession session = mustOwn(sessionId);
+        // 意图分流前置(引擎无关):rag1 优先,关键词兜底 —— 闲聊/能力询问两个引擎都不该进 SQL 链路。
+        // 此前只在 Nl2SqlService(java)里有,Python 链路绕过了它,"你能干什么"被硬编成 SQL 而失败
+        if (isChitChat(question)) {
+            TraceHub.publish(queryId, "闲聊直答", "非取数问题,免 LLM 直接回答", true);
+            return finishStep(session, queryId, chitChatAnswer(question), null);
+        }
         // 权限划分:STEP(每一步过问)→ 生成 SQL 后等用户确认再执行;AUTO(完全允许)→ 全自动
         User owner = userMapper.selectById(session.getUserId());
         if (queryId > 0 && owner != null && "STEP".equalsIgnoreCase(owner.getApprovalMode())) {

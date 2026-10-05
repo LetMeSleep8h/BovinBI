@@ -27,8 +27,41 @@ SYSTEM_PROMPT = """#Role: 你是数仓 NL2SQL 生成 Agent。只负责生成 SQL
 3. 结果末尾必须有 LIMIT;输出列用中文别名。"""
 
 
+CHIT_CHAT_PATTERNS = [
+    "你是谁", "你叫什么", "你能做什么", "你能干什么", "你会做什么", "你会干什么",
+    "你有什么功能", "有什么功能", "能干什么", "会什么", "你是干嘛的",
+    "你好", "您好", "哈喽", "hello", "hi", "在吗", "谢谢", "多谢", "感谢", "再见", "拜拜",
+]
+
+
+def is_chit_chat(question: str) -> bool:
+    """能力询问/问候/道谢等非取数输入(Java 侧意图分流之后这里只是兜底)"""
+    q = question.strip().lower()
+    if len(q) > 40:
+        return False
+    return any(p in q for p in CHIT_CHAT_PATTERNS)
+
+
+def chit_chat_answer(question: str) -> dict:
+    if any(k in question for k in ("谢谢", "多谢", "感谢")):
+        text = "不客气!还想看什么数据,直接问就行。"
+    elif any(k in question for k in ("再见", "拜拜")):
+        text = "再见!数据随时在这里等你。"
+    else:
+        text = ("我是 BovinBI 的 Python Agent:把一句自然语言变成 SQL 并执行出图表,"
+                "支持趋势/TopN/占比/分组/单值指标。试试:销售额Top10商品类目。")
+    return {
+        "sql": None, "explanation": text, "columns": [], "rows": [], "rowCount": 0,
+        "fallback": False, "fallbackHint": None, "engine": "PYTHON",
+        "steps": [{"name": "闲聊直答", "detail": "非取数问题,不生成 SQL", "ok": True}],
+        "tookMs": 1,
+    }
+
+
 def answer(dataset_id: int, question: str) -> dict:
     """一次问答:返回与 Java AnswerPayload 同构的字典(子集)+ steps 轨迹"""
+    if is_chit_chat(question):
+        return chit_chat_answer(question)
     steps = []
 
     def step(name, detail, ok=True):

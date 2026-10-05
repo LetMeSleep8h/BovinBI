@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { DataAnalysis, ChatDotRound, Coin, Document, MagicStick, SwitchButton } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
+import http from '@/api/http'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,8 +13,6 @@ const store = useUserStore()
 onMounted(() => {
   store.fetchMe().catch(() => undefined)
 })
-
-const http = (await import('@/api/http')).default
 
 function modeLabel(mode: string) {
   const cur = store.user?.approvalMode || 'AUTO'

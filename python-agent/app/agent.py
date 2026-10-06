@@ -44,7 +44,9 @@ AGENT_SYSTEM = (
     "2) SQL 只用 Schema 中的表和列,末尾必须有 LIMIT,输出列用中文别名;\n"
     "3) 用 executeSql 执行拿到结果后,在最后一行输出 JSON:"
     '{"sql": "<已成功执行的SQL>", "explanation": "一句话中文结论"};\n'
-    "4) 用户的问题不是数据问题时,直接简短回答,不调用工具。"
+    "4) 用户的问题不是数据问题时,直接简短回答,不调用工具;\n"
+    "5) 危险指令(删除/下架/修改数据/写入)一律拒绝执行并说明本系统只读,禁止为其查询任何数据;\n"
+    "6) 请求的数据在 Schema 中不存在时,直接说明没有该指标,禁止用相近指标的数据冒充。"
 )
 
 CHAT_SYSTEM = (
@@ -184,6 +186,22 @@ def _extract_json(text: str) -> Optional[dict]:
         return None
 
 
+def _parse_csv(text: str) -> tuple[list, list]:
+    """exportReport 的完整 CSV → (columns, rows);BOM 首行容错,数值转类型"""
+    lines = [l for l in (text or "").split("\n") if l.strip()]
+    if not lines:
+        return [], []
+    header = lines[0].luf().lstrip("\ufeff") if False else lines[0].lstrip("\ufeff").strip()
+    names = [c.strip() for c in header.split(",")]
+    columns = [{"name": n, "type": "VARCHAR"} for n in names if n]
+    rows = []
+    for line in lines[1:]:
+        vals = line.split(",")
+        if len(vals) == len(columns):
+            rows.append({c["name"]: _num(v.strip()) for c, v in zip(columns, vals)})
+    return columns, rows
+
+
 def _parse_preview(text: str) -> tuple[list, list]:
     """解析 executeSql 工具返回的预览文本 → (columns, rows)"""
     columns, rows = [], []
@@ -256,15 +274,27 @@ def agent_node(state: AgentState) -> dict:
         return {"fallback": True, "fallback_hint": "Agent 未能产出 SQL(可换个问法重试)",
                 "explanation": final_exp, "steps": steps}
 
-    # 生成的 SQL 交底座执行(与循环同一 MCP 通道;守护在 Java 侧)
+    # 生成的 SQL 交底座执行(与循环同一 MCP 通道;守护在 Java 侧)。
+    # 行数据改走 exportReport(完整 CSV)——executeSql 只回前 N 行预览,
+    # group 类问题(如"各州销售额"27 个桶)会被预览截断,评测按行比对就缺桶
     async def _exec():
         client = _mcp_client()
         tools = await client.get_tools()
         ex = next(t for t in tools if t.name == "executeSql")
-        return await ex.ainvoke({"datasetId": state["dataset_id"], "sql": final_sql})
+        pv = await ex.ainvoke({"datasetId": state["dataset_id"], "sql": final_sql})
+        full = ""
+        try:
+            exp = next(t for t in tools if t.name == "exportReport")
+            full = await exp.ainvoke({"datasetId": state["dataset_id"], "sql": final_sql})
+        except Exception:  # noqa: BLE001
+            pass  # 导出失败退回预览解析
+        return pv, full
 
-    preview = _run_async(_exec)
-    columns, rows = _parse_preview(preview)
+    preview, full_csv = _run_async(_exec)
+    if full_csv and "\n" in (full_csv or ""):
+        columns, rows = _parse_csv(full_csv)
+    else:
+        columns, rows = _parse_preview(preview)
     ok = "执行成功" in (preview or "")
     steps.append({"name": "executeSql(MCP)", "detail": (preview or "")[:120], "ok": ok})
     if not ok:

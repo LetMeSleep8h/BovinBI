@@ -203,6 +203,7 @@ def main():
     ap.add_argument("--password", default="bovin123")
     ap.add_argument("--gt", default=os.path.join(HERE, "gt.json"))
     ap.add_argument("--engine", default=None, help="提问引擎(java/python);不传=后端默认")
+    ap.add_argument("--dataset", default=None, help="数据集名关键字(如 电商/Olist);不传=第一个")
     args = ap.parse_args()
 
     gt = json.load(open(args.gt, encoding="utf-8"))
@@ -211,7 +212,9 @@ def main():
 
     r = call(args.base, "/api/auth/login", {"username": args.user, "password": args.password})
     token = r["data"]["token"]
-    ds = call(args.base, "/api/datasets", token=token)["data"][0]
+    all_ds = call(args.base, "/api/datasets", token=token)["data"]
+    ds = next((d for d in all_ds if (args.dataset or "") in d["name"]), all_ds[0])
+    print(f"评测数据集: {ds['name']}(id={ds['id']})")
     sid = call(args.base, "/api/chat/sessions", {"datasetId": ds["id"]}, token=token)["data"]["sessionId"]
 
     results = []

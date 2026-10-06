@@ -1,0 +1,435 @@
+{
+ "anchor": "2018-08-29",
+ "dataset": "电商零售·巴西Olist",
+ "generated_at": "2026-10-06",
+ "data_window": [
+  "2016-09-15",
+  "2018-08-29"
+ ],
+ "n_facts": 110197,
+ "cases": [
+  {
+   "id": "EA01",
+   "cat": "EA口语改写",
+   "q": "销售额最高的三个商品类目是哪些?",
+   "kind": "top",
+   "expect": [
+    [
+     "health_beauty",
+     1233131.72
+    ],
+    [
+     "watches_gifts",
+     1166176.98
+    ],
+    [
+     "bed_bath_table",
+     1023434.76
+    ]
+   ]
+  },
+  {
+   "id": "EA02",
+   "cat": "EA口语改写",
+   "q": "帮我看看每个州的客户各贡献了多少销售额",
+   "kind": "group",
+   "dim": "state",
+   "expect": {
+    "RJ": 1759651.13,
+    "SP": 5067633.16,
+    "MG": 1552481.83,
+    "PR": 666063.51,
+    "GO": 282836.7,
+    "BA": 493584.14,
+    "AL": 78855.72,
+    "MS": 115429.97,
+    "CE": 219757.38,
+    "DF": 296498.41,
+    "RS": 728897.47,
+    "PE": 251889.49,
+    "SC": 507012.13,
+    "ES": 268643.45,
+    "MA": 117009.38,
+    "PA": 174470.59,
+    "MT": 152191.62,
+    "PB": 112586.82,
+    "AM": 22155.84,
+    "AP": 13374.81,
+    "PI": 84721.0,
+    "TO": 48402.51,
+    "RO": 45682.76,
+    "RN": 82105.66,
+    "SE": 56574.19,
+    "AC": 15930.97,
+    "RR": 7057.47
+   }
+  },
+  {
+   "id": "EA03",
+   "cat": "EA口语改写",
+   "q": "一共有多少个不同的订单?",
+   "kind": "scalar",
+   "expect": 96478
+  },
+  {
+   "id": "EA04",
+   "cat": "EA口语改写",
+   "q": "平均每个订单花了多少钱?",
+   "kind": "scalar",
+   "expect": 137.0416
+  },
+  {
+   "id": "EA05",
+   "cat": "EA口语改写",
+   "q": "运费总共收了多少?",
+   "kind": "scalar",
+   "expect": 2198275.64
+  },
+  {
+   "id": "EA06",
+   "cat": "EA口语改写",
+   "q": "哪个类目的东西卖得最贵(平均单价最高)?",
+   "kind": "top",
+   "expect": [
+    [
+     "computers",
+     1098.9153
+    ]
+   ]
+  },
+  {
+   "id": "EB01",
+   "cat": "EB绝对时间",
+   "q": "2017年11月的总销售额是多少?",
+   "kind": "scalar",
+   "expect": 987765.37
+  },
+  {
+   "id": "EB02",
+   "cat": "EB绝对时间",
+   "q": "2018年3月各商品类目的销售额",
+   "kind": "group",
+   "dim": "category",
+   "expect": {
+    "health_beauty": 84488.57,
+    "bed_bath_table": 67786.35,
+    "office_furniture": 30861.64,
+    "furniture_decor": 51319.97,
+    "computers_accessories": 84708.39,
+    "sports_leisure": 81656.96,
+    "books_technical": 913.47,
+    "stationery": 12993.74,
+    "baby": 40818.75,
+    "housewares": 35052.12,
+    "watches_gifts": 95661.18,
+    "home_appliances": 9876.59,
+    "garden_tools": 26773.88,
+    "electronics": 12394.51,
+    "unknown": 16625.22,
+    "perfumery": 20081.88,
+    "small_appliances": 13952.18,
+    "industry_commerce_and_business": 2922.45,
+    "pet_shop": 13400.21,
+    "telephony": 24759.43,
+    "costruction_tools_garden": 2087.23,
+    "luggage_accessories": 5851.77,
+    "fashion_underwear_beach": 289.4,
+    "cool_stuff": 37791.24,
+    "auto": 44081.96,
+    "fashion_bags_accessories": 10096.51,
+    "musical_instruments": 8931.4,
+    "furniture_living_room": 3521.87,
+    "toys": 22817.55,
+    "audio": 10606.69,
+    "construction_tools_lights": 2536.7,
+    "diapers_and_hygiene": 125.0,
+    "consoles_games": 11826.22,
+    "construction_tools_safety": 5374.87,
+    "food_drink": 2350.77,
+    "food": 1559.9,
+    "drinks": 962.7,
+    "agro_industry_and_commerce": 5161.0,
+    "home_construction": 5250.51,
+    "home_confort": 2522.38,
+    "books_general_interest": 1691.94,
+    "air_conditioning": 2507.68,
+    "flowers": 89.67,
+    "books_imported": 259.0,
+    "construction_tools_construction": 9446.58,
+    "fixed_telephony": 1930.59,
+    "furniture_mattress_and_upholstery": 440.0,
+    "costruction_tools_tools": 931.3,
+    "signaling_and_security": 921.9,
+    "home_appliances_2": 5648.2,
+    "furniture_bedroom": 1071.8,
+    "kitchen_dining_laundry_garden_furniture": 2842.66,
+    "fashion_shoes": 1053.1,
+    "cine_photo": 711.79,
+    "art": 461.5,
+    "market_place": 1548.74,
+    "christmas_supplies": 854.95,
+    "small_appliances_home_oven_and_coffee": 7890.9,
+    "fashio_female_clothing": 119.96,
+    "fashion_sport": 89.9,
+    "music": 323.97,
+    "home_comfort_2": 34.99,
+    "dvds_blu_ray": 49.8,
+    "party_supplies": 913.9,
+    "la_cuisine": 389.0,
+    "tablets_printing_image": 259.29,
+    "fashion_childrens_clothes": 79.98
+   }
+  },
+  {
+   "id": "EB03",
+   "cat": "EB绝对时间",
+   "q": "2016年9月到12月每月销售额走势",
+   "kind": "trend",
+   "bucket": "month",
+   "expect": {
+    "2016-10": 40325.11,
+    "2016-12": 10.9,
+    "2016-09": 134.97
+   }
+  },
+  {
+   "id": "EB04",
+   "cat": "EB绝对时间",
+   "q": "2018年上半年总运费",
+   "kind": "scalar",
+   "expect": 926690.83
+  },
+  {
+   "id": "EB05",
+   "cat": "EB绝对时间",
+   "q": "2017年哪个州的订单最多?",
+   "kind": "top",
+   "expect": [
+    [
+     "SP",
+     17071
+    ]
+   ]
+  },
+  {
+   "id": "EC01",
+   "cat": "EC复合条件",
+   "q": "圣保罗州客户买了多少销售额?",
+   "kind": "scalar",
+   "expect": 5067633.16
+  },
+  {
+   "id": "EC02",
+   "cat": "EC复合条件",
+   "q": "里约热内卢州的客户在2018年下了多少个订单?",
+   "kind": "scalar",
+   "expect": 6342
+  },
+  {
+   "id": "EC03",
+   "cat": "EC复合条件",
+   "q": "health_beauty类目在2017年11月的销售额",
+   "kind": "scalar",
+   "expect": 78274.4
+  },
+  {
+   "id": "EC04",
+   "cat": "EC复合条件",
+   "q": "米纳斯吉拉斯州客户买的最多的前3个类目",
+   "kind": "top",
+   "expect": [
+    [
+     "health_beauty",
+     154324.15
+    ],
+    [
+     "bed_bath_table",
+     128760.49
+    ],
+    [
+     "watches_gifts",
+     121622.03
+    ]
+   ]
+  },
+  {
+   "id": "EC05",
+   "cat": "EC复合条件",
+   "q": "bed_bath_table类目平均运费是多少?",
+   "kind": "scalar",
+   "expect": 18.4218
+  },
+  {
+   "id": "EC06",
+   "cat": "EC复合条件",
+   "q": "2018年8月圣保罗州客户的订单数",
+   "kind": "scalar",
+   "expect": 3164
+  },
+  {
+   "id": "ED01",
+   "cat": "ED排行对比",
+   "q": "销售额第一名类目比第二名多多少?",
+   "kind": "any_num",
+   "expect": [
+    66954.74
+   ],
+   "note": "第一比第二多 66954.74(系统只要给出这个差值或两个原值之一可推算即算对)"
+  },
+  {
+   "id": "ED02",
+   "cat": "ED排行对比",
+   "q": "2018年5月和4月哪个月销售额更高?",
+   "kind": "any_num",
+   "expect": [
+    977544.69,
+    973534.09
+   ],
+   "note": "5月=977544.69 4月=973534.09;出现任一数值即算如实作答"
+  },
+  {
+   "id": "ED03",
+   "cat": "ED排行对比",
+   "q": "哪个州的平均客单价最高?",
+   "kind": "top",
+   "expect": [
+    [
+     "PB",
+     217.7695
+    ]
+   ]
+  },
+  {
+   "id": "ED04",
+   "cat": "ED排行对比",
+   "q": "运费最低的三个类目",
+   "kind": "top",
+   "expect": [
+    [
+     "fashion_childrens_clothes",
+     11.2457
+    ],
+    [
+     "books_imported",
+     12.8435
+    ],
+    [
+     "fashio_female_clothing",
+     12.9667
+    ]
+   ]
+  },
+  {
+   "id": "EE01",
+   "cat": "EE业务黑话",
+   "q": "总GMV是多少?",
+   "kind": "scalar",
+   "expect": 13221498.11
+  },
+  {
+   "id": "EE02",
+   "cat": "EE业务黑话",
+   "q": "平台整体客单价",
+   "kind": "scalar",
+   "expect": 137.0416
+  },
+  {
+   "id": "EE03",
+   "cat": "EE业务黑话",
+   "q": "上个月的GMV",
+   "kind": "scalar",
+   "expect": 867953.46
+  },
+  {
+   "id": "EF01",
+   "cat": "EF负样本",
+   "q": "哪个类目的退货率最高?",
+   "kind": "no_data"
+  },
+  {
+   "id": "EF02",
+   "cat": "EF负样本",
+   "q": "客户的平均年龄是多少?",
+   "kind": "no_data"
+  },
+  {
+   "id": "EF03",
+   "cat": "EF负样本",
+   "q": "各店铺的评分排名",
+   "kind": "no_data"
+  },
+  {
+   "id": "EF04",
+   "cat": "EF负样本",
+   "q": "把销售额最高的商品下架",
+   "kind": "no_data"
+  },
+  {
+   "id": "EF05",
+   "cat": "EF负样本",
+   "q": "用户最常用的支付方式分布",
+   "kind": "no_data"
+  },
+  {
+   "id": "EF06",
+   "cat": "EF负样本",
+   "q": "今天天气怎么样",
+   "kind": "no_data"
+  },
+  {
+   "id": "EG01",
+   "cat": "EG相对口径",
+   "q": "2018年总销售额",
+   "kind": "scalar",
+   "expect": 7218125.12
+  },
+  {
+   "id": "EG02",
+   "cat": "EG相对口径",
+   "q": "最近三个月每月销售额趋势",
+   "kind": "trend",
+   "bucket": "month",
+   "expect": {
+    "2018-07": 867953.46,
+    "2018-05": 977544.69,
+    "2018-06": 856077.86
+   }
+  },
+  {
+   "id": "EG03",
+   "cat": "EG相对口径",
+   "q": "近一年各州销售额",
+   "kind": "group",
+   "dim": "state",
+   "expect": {
+    "RJ": 1306090.43,
+    "MG": 1179638.08,
+    "SP": 3780462.35,
+    "PR": 495730.66,
+    "GO": 209417.07,
+    "BA": 373504.07,
+    "CE": 166173.31,
+    "DF": 223100.59,
+    "PE": 200789.89,
+    "SC": 379775.5,
+    "RS": 539780.73,
+    "AL": 59908.7,
+    "MA": 94521.1,
+    "PA": 125794.69,
+    "MS": 83295.42,
+    "MT": 116191.78,
+    "ES": 206391.06,
+    "PB": 82430.1,
+    "AM": 17512.12,
+    "AP": 10593.68,
+    "PI": 62929.7,
+    "TO": 35453.02,
+    "RO": 34619.99,
+    "RN": 62512.33,
+    "SE": 41210.02,
+    "AC": 9727.05,
+    "RR": 6140.62
+   }
+  }
+ ]
+}

@@ -20,7 +20,7 @@
   ],
   "verdict": "PASS",
   "detail": "前 3 名次序与真值一致",
-  "took": 6317,
+  "took": 83690,
   "engine": "PYTHON",
   "sql": "SELECT p.category AS 商品类目, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY 销售额 DESC LIMIT 3"
  },
@@ -61,7 +61,7 @@
   },
   "verdict": "PASS",
   "detail": "27 个桶全部命中",
-  "took": 6414,
+  "took": 82402,
   "engine": "PYTHON",
   "sql": "SELECT c.state AS 客户州, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id GROUP BY c.state ORDER BY 销售额 DESC LIMIT 100"
  },
@@ -73,7 +73,7 @@
   "expect": 96478,
   "verdict": "PASS",
   "detail": "命中真值 96478",
-  "took": 4973,
+  "took": 81669,
   "engine": "PYTHON",
   "sql": "SELECT COUNT(DISTINCT order_id) AS 不同订单数 FROM ecom_fact_order_item LIMIT 10"
  },
@@ -85,7 +85,7 @@
   "expect": 137.0416,
   "verdict": "PASS",
   "detail": "命中真值 137.0416",
-  "took": 6013,
+  "took": 7254,
   "engine": "PYTHON",
   "sql": "SELECT ROUND(SUM(price) / COUNT(DISTINCT order_id), 2) AS 平均每单金额 FROM ecom_fact_order_item LIMIT 10"
  },
@@ -97,9 +97,9 @@
   "expect": 2198275.64,
   "verdict": "PASS",
   "detail": "命中真值 2198275.64",
-  "took": 5105,
+  "took": 80876,
   "engine": "PYTHON",
-  "sql": "SELECT ROUND(SUM(freight_value), 2) AS 运费总额 FROM ecom_fact_order_item LIMIT 10"
+  "sql": "SELECT SUM(freight_value) AS 运费总额 FROM ecom_fact_order_item LIMIT 10"
  },
  {
   "id": "EA06",
@@ -114,9 +114,9 @@
   ],
   "verdict": "PASS",
   "detail": "前 1 名次序与真值一致",
-  "took": 5438,
+  "took": 81817,
   "engine": "PYTHON",
-  "sql": "SELECT p.category AS 商品类目, ROUND(AVG(f.price), 2) AS 平均单价 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY 平均单价 DESC LIMIT 10"
+  "sql": "SELECT p.category AS 商品类目, AVG(f.price) AS 平均单价 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY 平均单价 DESC LIMIT 10"
  },
  {
   "id": "EB01",
@@ -126,7 +126,7 @@
   "expect": 987765.37,
   "verdict": "PASS",
   "detail": "命中真值 987765.37",
-  "took": 5212,
+  "took": 82490,
   "engine": "PYTHON",
   "sql": "SELECT SUM(price) AS 总销售额 FROM ecom_fact_order_item WHERE order_date >= '2017-11-01' AND order_date < '2017-12-01' LIMIT 10"
  },
@@ -207,7 +207,7 @@
   },
   "verdict": "PASS",
   "detail": "67 个桶全部命中",
-  "took": 6174,
+  "took": 82189,
   "engine": "PYTHON",
   "sql": "SELECT p.category AS 商品类目, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id WHERE f.order_date >= '2018-03-01' AND f.order_date < '2018-04-01' GROUP BY p.category ORDER BY 销售额 DESC LIMIT 100"
  },
@@ -224,7 +224,7 @@
   },
   "verdict": "PASS",
   "detail": "3 个桶全部命中",
-  "took": 5411,
+  "took": 46533,
   "engine": "PYTHON",
   "sql": "SELECT DATE_FORMAT(order_date, '%Y-%m') AS 月份, SUM(price) AS 销售额 FROM ecom_fact_order_item WHERE order_date >= '2016-09-01' AND order_date < '2017-01-01' GROUP BY DATE_FORMAT(order_date, '%Y-%m') ORDER BY 月份 LIMIT 10"
  },
@@ -236,9 +236,9 @@
   "expect": 926690.83,
   "verdict": "PASS",
   "detail": "命中真值 926690.83",
-  "took": 5241,
+  "took": 5202,
   "engine": "PYTHON",
-  "sql": "SELECT SUM(freight_value) AS 总运费 FROM ecom_fact_order_item WHERE order_date >= '2018-01-01' AND order_date < '2018-07-01' LIMIT 100"
+  "sql": "SELECT SUM(freight_value) AS 总运费 FROM ecom_fact_order_item WHERE order_date >= '2018-01-01' AND order_date < '2018-07-01' LIMIT 10"
  },
  {
   "id": "EB05",
@@ -253,7 +253,7 @@
   ],
   "verdict": "PASS",
   "detail": "前 1 名次序与真值一致",
-  "took": 7284,
+  "took": 7172,
   "engine": "PYTHON",
   "sql": "SELECT c.state AS 客户州, COUNT(DISTINCT f.order_id) AS 订单数 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE f.order_date >= '2017-01-01' AND f.order_date < '2018-01-01' GROUP BY c.state ORDER BY 订单数 DESC LIMIT 10"
  },
@@ -265,9 +265,9 @@
   "expect": 5067633.16,
   "verdict": "PASS",
   "detail": "命中真值 5067633.16",
-  "took": 7017,
+  "took": 7041,
   "engine": "PYTHON",
-  "sql": "SELECT c.state AS 客户州, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE c.state = 'SP' GROUP BY c.state LIMIT 10"
+  "sql": "SELECT SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE c.state = 'SP' LIMIT 10"
  },
  {
   "id": "EC02",
@@ -277,9 +277,9 @@
   "expect": 6342,
   "verdict": "PASS",
   "detail": "命中真值 6342",
-  "took": 8027,
+  "took": 6816,
   "engine": "PYTHON",
-  "sql": "SELECT COUNT(DISTINCT f.order_id) AS 订单数 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE c.state = 'RJ' AND f.order_date >= '2018-01-01' AND f.order_date < '2019-01-01' LIMIT 10"
+  "sql": "SELECT COUNT(DISTINCT f.order_id) AS 订单数 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE c.state = 'RJ' AND f.order_date >= '2018-01-01' AND f.order_date < '2019-01-01' LIMIT 100"
  },
  {
   "id": "EC03",
@@ -289,7 +289,7 @@
   "expect": 78274.4,
   "verdict": "PASS",
   "detail": "命中真值 78274.4",
-  "took": 6763,
+  "took": 5232,
   "engine": "PYTHON",
   "sql": "SELECT SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id WHERE p.category = 'health_beauty' AND f.order_date >= '2017-11-01' AND f.order_date < '2017-12-01' LIMIT 10"
  },
@@ -312,11 +312,11 @@
     121622.03
    ]
   ],
-  "verdict": "PASS",
-  "detail": "前 3 名次序与真值一致",
-  "took": 8943,
+  "verdict": "WRONG",
+  "detail": "第1名期望 health_beauty 实得 bed_bath_table;第2名期望 bed_bath_table 实得 health_beauty;第3名期望 watches_gifts 实得 computers_accessories 返回:{'商品类目': 'bed_bath_table', '订单数': 1120, '销售额': 128760.49} ; {'商品类目': 'health_beauty', '订单数': 990, '销售额': 154324.15}",
+  "took": 7554,
   "engine": "PYTHON",
-  "sql": "SELECT p.category AS 商品类目, SUM(f.price) AS 销售额, COUNT(DISTINCT f.order_id) AS 订单数 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id JOIN ecom_dim_product p ON f.product_id = p.product_id WHERE c.state = 'MG' GROUP BY p.category ORDER BY 销售额 DESC LIMIT 3"
+  "sql": "SELECT p.category AS 商品类目, COUNT(DISTINCT f.order_id) AS 订单数, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id JOIN ecom_dim_product p ON f.product_id = p.product_id WHERE c.state = 'MG' GROUP BY p.category ORDER BY 订单数 DESC LIMIT 3"
  },
  {
   "id": "EC05",
@@ -326,9 +326,9 @@
   "expect": 18.4218,
   "verdict": "PASS",
   "detail": "命中真值 18.4218",
-  "took": 6043,
+  "took": 8219,
   "engine": "PYTHON",
-  "sql": "SELECT p.category AS 商品类目, AVG(f.freight_value) AS 平均运费 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id WHERE p.category = 'bed_bath_table' GROUP BY p.category LIMIT 10"
+  "sql": "SELECT AVG(f.freight_value) AS 平均运费 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id WHERE p.category = 'bed_bath_table' LIMIT 10"
  },
  {
   "id": "EC06",
@@ -338,7 +338,7 @@
   "expect": 3164,
   "verdict": "PASS",
   "detail": "命中真值 3164",
-  "took": 6651,
+  "took": 6278,
   "engine": "PYTHON",
   "sql": "SELECT COUNT(DISTINCT f.order_id) AS 订单数 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE c.state = 'SP' AND f.order_date >= '2018-08-01' AND f.order_date < '2018-09-01' LIMIT 100"
  },
@@ -353,9 +353,9 @@
   "note": "第一比第二多 66954.74(系统只要给出这个差值或两个原值之一可推算即算对)",
   "verdict": "WRONG",
   "detail": "期望 [66954.74] 之一,返回:{'商品类目': 'health_beauty', '销售额': 1233131.72} ; {'商品类目': 'watches_gifts', '销售额': 1166176.98}",
-  "took": 6055,
+  "took": 5671,
   "engine": "PYTHON",
-  "sql": "SELECT p.category AS 商品类目, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY 销售额 DESC LIMIT 2"
+  "sql": "SELECT p.category AS 商品类目, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY 销售额 DESC LIMIT 5"
  },
  {
   "id": "ED02",
@@ -369,7 +369,7 @@
   "note": "5月=977544.69 4月=973534.09;出现任一数值即算如实作答",
   "verdict": "PASS",
   "detail": "命中真值(口径之一)977544.69",
-  "took": 6084,
+  "took": 5610,
   "engine": "PYTHON",
   "sql": "SELECT DATE_FORMAT(order_date, '%Y-%m') AS 月份, SUM(price) AS 销售额 FROM ecom_fact_order_item WHERE order_date >= '2018-04-01' AND order_date < '2018-06-01' GROUP BY DATE_FORMAT(order_date, '%Y-%m') ORDER BY 月份 LIMIT 10"
  },
@@ -386,7 +386,7 @@
   ],
   "verdict": "PASS",
   "detail": "前 1 名次序与真值一致",
-  "took": 6029,
+  "took": 7555,
   "engine": "PYTHON",
   "sql": "SELECT c.state AS 客户州, ROUND(SUM(f.price) / COUNT(DISTINCT f.order_id), 2) AS 平均客单价 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id GROUP BY c.state ORDER BY 平均客单价 DESC LIMIT 10"
  },
@@ -411,7 +411,7 @@
   ],
   "verdict": "WRONG",
   "detail": "第1名期望 fashion_childrens_clothes 实得 security_and_services;第2名期望 books_imported 实得 fashion_childrens_clothes;第3名期望 fashio_female_clothing 实得 cds_dvds_musicals 返回:{'商品类目': 'security_and_services', '运费总额': 41.22} ; {'商品类目': 'fashion_childrens_clothes', '运费总额': 78.72}",
-  "took": 6029,
+  "took": 5758,
   "engine": "PYTHON",
   "sql": "SELECT p.category AS 商品类目, SUM(f.freight_value) AS 运费总额 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY 运费总额 ASC LIMIT 3"
  },
@@ -423,9 +423,9 @@
   "expect": 13221498.11,
   "verdict": "PASS",
   "detail": "命中真值 13221498.11",
-  "took": 5860,
+  "took": 4550,
   "engine": "PYTHON",
-  "sql": "SELECT ROUND(SUM(price), 2) AS 总GMV FROM ecom_fact_order_item LIMIT 1"
+  "sql": "SELECT SUM(price) AS 总GMV FROM ecom_fact_order_item LIMIT 10"
  },
  {
   "id": "EE02",
@@ -435,7 +435,7 @@
   "expect": 137.0416,
   "verdict": "PASS",
   "detail": "命中真值 137.0416",
-  "took": 7025,
+  "took": 4937,
   "engine": "PYTHON",
   "sql": "SELECT ROUND(SUM(price) / COUNT(DISTINCT order_id), 2) AS 平台整体客单价 FROM ecom_fact_order_item LIMIT 1"
  },
@@ -447,9 +447,9 @@
   "expect": 867953.46,
   "verdict": "PASS",
   "detail": "命中真值 867953.46",
-  "took": 6565,
+  "took": 7335,
   "engine": "PYTHON",
-  "sql": "SELECT SUM(price) AS GMV, COUNT(DISTINCT order_id) AS 订单数 FROM ecom_fact_order_item WHERE order_date >= '2018-07-01' AND order_date < '2018-08-01' LIMIT 1"
+  "sql": "SELECT SUM(price) AS 上个月GMV FROM ecom_fact_order_item WHERE order_date >= '2018-07-01' AND order_date < '2018-08-01' LIMIT 1"
  },
  {
   "id": "EF01",
@@ -458,7 +458,7 @@
   "kind": "no_data",
   "verdict": "PASS",
   "detail": "未编造(空/降级)",
-  "took": 6238,
+  "took": 6634,
   "engine": "PYTHON",
   "sql": ""
  },
@@ -469,7 +469,7 @@
   "kind": "no_data",
   "verdict": "PASS",
   "detail": "未编造(空/降级)",
-  "took": 4029,
+  "took": 5411,
   "engine": "PYTHON",
   "sql": ""
  },
@@ -480,7 +480,7 @@
   "kind": "no_data",
   "verdict": "PASS",
   "detail": "未编造(空/降级)",
-  "took": 6448,
+  "took": 6908,
   "engine": "PYTHON",
   "sql": ""
  },
@@ -489,11 +489,11 @@
   "cat": "EF负样本",
   "q": "把销售额最高的商品下架",
   "kind": "no_data",
-  "verdict": "PASS",
-  "detail": "未编造(空/降级)",
-  "took": 3911,
+  "verdict": "FABRICATE",
+  "detail": "负样本却返回了数值行:{'商品类目': 'health_beauty', '销售额': 1233131.72} ; {'商品类目': 'watches_gifts', '销售额': 1166176.98}",
+  "took": 10673,
   "engine": "PYTHON",
-  "sql": ""
+  "sql": "SELECT p.category AS 商品类目, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY 销售额 DESC LIMIT 10"
  },
  {
   "id": "EF05",
@@ -502,7 +502,7 @@
   "kind": "no_data",
   "verdict": "PASS",
   "detail": "未编造(空/降级)",
-  "took": 6234,
+  "took": 5691,
   "engine": "PYTHON",
   "sql": ""
  },
@@ -513,7 +513,7 @@
   "kind": "no_data",
   "verdict": "PASS",
   "detail": "未编造(空/降级)",
-  "took": 2783,
+  "took": 2639,
   "engine": "CHAT",
   "sql": ""
  },
@@ -525,7 +525,7 @@
   "expect": 7218125.12,
   "verdict": "PASS",
   "detail": "命中真值 7218125.12",
-  "took": 5425,
+  "took": 4903,
   "engine": "PYTHON",
   "sql": "SELECT SUM(price) AS 总销售额 FROM ecom_fact_order_item WHERE order_date >= '2018-01-01' AND order_date <= '2018-12-31' LIMIT 10"
  },
@@ -541,10 +541,10 @@
    "2018-06": 856077.86
   },
   "verdict": "WRONG",
-  "detail": "桶值不符 {'201805': 68948.16} / 缺桶 [] / 多桶 ['201808'] 返回:{'月份': '2018-05', '销售额': 68948.16} ; {'月份': '2018-06', '销售额': 856077.86}",
-  "took": 7645,
+  "detail": "桶值不符 {} / 缺桶 ['201805'] / 多桶 ['201808'] 返回:{'月份': '2018-08', '销售额': 838576.64} ; {'月份': '2018-07', '销售额': 867953.46}",
+  "took": 5796,
   "engine": "PYTHON",
-  "sql": "SELECT DATE_FORMAT(order_date, '%Y-%m') AS 月份, SUM(price) AS 销售额 FROM ecom_fact_order_item WHERE order_date >= (SELECT DATE_SUB(MAX(order_date), INTERVAL 3 MONTH) FROM ecom_fact_order_item) GROUP BY DATE_FORMAT(order_date, '%Y-%m') ORDER BY 月份 LIMIT 10"
+  "sql": "SELECT DATE_FORMAT(order_date, '%Y-%m') AS 月份, SUM(price) AS 销售额 FROM ecom_fact_order_item GROUP BY DATE_FORMAT(order_date, '%Y-%m') ORDER BY 月份 DESC LIMIT 3"
  },
  {
   "id": "EG03",
@@ -582,9 +582,9 @@
    "RR": 6140.62
   },
   "verdict": "WRONG",
-  "detail": "桶值不符 {'RJ': 1335176.83, 'MG': 1226415.3, 'SP': 3999985.64, 'PR': 508448.83, 'GO': 215033.61, 'BA': 376416.37, 'CE': 165966.28, 'DF': 235754.16, 'PE': 201326.16, 'SC': 392480.25, 'RS': 553352.8, 'AL': 55071.26, 'MA': 94252.96, 'PA': 122274.25, 'MS': 85845.03, 'MT': 114513.36, 'ES': 211803.32, 'PB': 88214.96, 'AM': 16616.22, 'AP': 10497.89, 'PI': 61565.42, 'TO': 36446.42, 'RO': 37000.59, 'RN': 65900.62, 'SE': 43797.15, 'AC': 9535.81} / 缺桶 [] / 多桶 [] 返回:{'客户州': 'SP', '销售额': 3999985.64} ; {'客户州': 'RJ', '销售额': 1335176.83}",
-  "took": 6205,
+  "detail": "桶值不符 {'RJ': 1335176.83, 'MG': 1226415.3, 'SP': 3999985.64, 'PR': 508448.83, 'GO': 215033.61, 'BA': 376416.37, 'CE': 165966.28, 'DF': 235754.16, 'PE': 201326.16, 'SC': 392480.25, 'RS': 553352.8, 'AL': 55071.26, 'MA': 94252.96, 'PA': 122274.25, 'MS': 85845.03, 'MT': 114513.36, 'ES': 211803.32, 'PB': 88214.96, 'AM': 16616.22, 'AP': 10497.89, 'PI': 61565.42, 'TO': 36446.42, 'RO': 37000.59, 'RN': 65900.62, 'SE': 43797.15, 'AC': 9535.81} / 缺桶 [] / 多桶 [] 返回:{'州': 'SP', '销售额': 3999985.64} ; {'州': 'RJ', '销售额': 1335176.83}",
+  "took": 7176,
   "engine": "PYTHON",
-  "sql": "SELECT c.state AS 客户州, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE f.order_date >= DATE_SUB((SELECT MAX(order_date) FROM ecom_fact_order_item), INTERVAL 1 YEAR) GROUP BY c.state ORDER BY 销售额 DESC LIMIT 100"
+  "sql": "SELECT c.state AS 州, SUM(f.price) AS 销售额 FROM ecom_fact_order_item f JOIN ecom_dim_customer c ON f.customer_id = c.customer_id WHERE f.order_date >= DATE_SUB((SELECT MAX(order_date) FROM ecom_fact_order_item), INTERVAL 1 YEAR) GROUP BY c.state ORDER BY 销售额 DESC LIMIT 100"
  }
 ]

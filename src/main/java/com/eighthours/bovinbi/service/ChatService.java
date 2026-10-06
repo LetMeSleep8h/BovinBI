@@ -41,6 +41,7 @@ public class ChatService {
     private final DatasetMapper datasetMapper;
     private final QueryLogMapper queryLogMapper;
     private final Nl2SqlService nl2SqlService;
+    private final com.eighthours.bovinbi.llm.LlmClient llmClient;
     private final PythonAgentService pythonAgentService;
     private final ChartAdvisor chartAdvisor;
     private final ChatQueryService chatQueryService;
@@ -167,7 +168,7 @@ public class ChatService {
         }
     }
 
-    /** STEP 流程收尾:助手消息落库(成功路径 execute 已落,此处只补取消/失败消息)并组装 VO */
+    /** STEP/闲聊流程收尾:助手消息落库(成功路径 execute 已落,此处补对话/取消/失败消息)并组装 VO */
     private MessageVO finishStep(ChatSession session, long queryId, String content, AnswerPayload payload) {
         if (payload == null) {
             ChatMessage bot = new ChatMessage();
@@ -175,7 +176,11 @@ public class ChatService {
             bot.setRole("ASSISTANT");
             bot.setContent(content);
             try {
-                bot.setPayload(objectMapper.writeValueAsString(Map.of("fallback", true, "engine", "STEP_MODE")));
+                // 正常对话载荷(fallback=false):AnswerCard 以解释文本渲染,
+                // 不再触发"暂时无法回答"警告框
+                bot.setPayload(objectMapper.writeValueAsString(Map.of(
+                        "engine", "CHAT", "explanation", content,
+                        "columns", List.of(), "rows", List.of(), "rowCount", 0, "fallback", false)));
             } catch (Exception ignore) {
                 bot.setPayload("{}");
             }
@@ -188,6 +193,38 @@ public class ChatService {
                     objectMapper.readTree(objectMapper.writeValueAsString(payload)), null);
         } catch (Exception ignore) {
             return new MessageVO(null, session.getId(), "ASSISTANT", content, null, null);
+        }
+    }
+
+    /** 对话 AI 系统提示词:像朋友一样聊天,顺势引导到数据提问 */
+    private static final String SMALL_TALK_SYSTEM = """
+            你是 BovinBI 里的数据助手,用户此刻在和你闲聊。要求:
+            - 像朋友一样自然回应:可以共情、可以幽默,每轮 2~3 句话以内,口语化,别堆客套话、别用列表;
+            - 你的绝活是把一句话变成 SQL 并出图表(电商零售/牧场养殖/全球牛奶产量三个数据集,趋势、TopN、占比都行);
+            - 察觉用户其实想查数据时,自然地给一个能直接问的例子(如"销售额Top10商品类目");
+            - 不编造自己没有的能力,不聊与工作无关的敏感话题。""";
+
+    /**
+     * 闲聊回答(三角色 · 角色二):python 引擎转发 Python Agent(其闲聊节点同为 LLM 对话),
+     * 其余走本服务 LLM;两者失败或离线时回落固定文案 —— 对外永远是"有回应",绝不静默。
+     */
+    private String smallTalk(ChatSession session, String question, String engine) {
+        if ("python".equalsIgnoreCase(engine)) {
+            try {
+                AnswerPayload p = pythonAgentService.answer(session.getDatasetId(), question, session.getId());
+                if (!p.isFallback() && p.getExplanation() != null && !p.getExplanation().isBlank()) {
+                    return p.getExplanation();
+                }
+            } catch (Exception e) {
+                log.warn("Python 闲聊失败,回落 Java 对话 AI: {}", e.getMessage());
+            }
+        }
+        try {
+            String reply = llmClient.chat(SMALL_TALK_SYSTEM, question);
+            return reply == null || reply.isBlank() ? chitChatAnswer(question) : reply.trim();
+        } catch (Exception e) {
+            log.warn("对话 AI 失败(离线/超时),回落固定文案: {}", e.getMessage());
+            return chitChatAnswer(question);
         }
     }
 
@@ -229,8 +266,10 @@ public class ChatService {
         // 意图分流前置(引擎无关):rag1 优先,关键词兜底 —— 闲聊/能力询问两个引擎都不该进 SQL 链路。
         // 此前只在 Nl2SqlService(java)里有,Python 链路绕过了它,"你能干什么"被硬编成 SQL 而失败
         if (isChitChat(question)) {
-            TraceHub.publish(queryId, "闲聊直答", "非取数问题,免 LLM 直接回答", true);
-            return finishStep(session, queryId, chitChatAnswer(question), null);
+            // 三角色架构 · 角色二(闲聊 AI):判别为闲聊后交给对话模型自由回答,
+            // 不再回写死文案 —— engine=python 走 Python Agent 的闲聊节点,否则走本服务 LLM
+            TraceHub.publish(queryId, "闲聊对话", "非取数问题,交给对话 AI 回答", true);
+            return finishStep(session, queryId, smallTalk(session, question, engine), null);
         }
         // 权限划分:STEP(每一步过问)→ 生成 SQL 后等用户确认再执行;AUTO(完全允许)→ 全自动
         User owner = userMapper.selectById(session.getUserId());

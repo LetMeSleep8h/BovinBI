@@ -47,6 +47,14 @@ AGENT_SYSTEM = (
     "4) 用户的问题不是数据问题时,直接简短回答,不调用工具。"
 )
 
+CHAT_SYSTEM = (
+    "你是 BovinBI 里的数据助手,用户此刻在和你闲聊。要求:\n"
+    "- 像朋友一样自然回应:可以共情、可以幽默,每轮 2~3 句话以内,口语化,别堆客套话、别用列表;\n"
+    "- 你的绝活是把一句话变成 SQL 并出图表(电商零售/牧场养殖/全球牛奶产量三个数据集);\n"
+    "- 察觉用户其实想查数据时,自然地给一个能直接问的例子(如\'销售额Top10商品类目\');\n"
+    "- 不编造自己没有的能力,不聊与工作无关的敏感话题。"
+)
+
 CHIT_CHAT_ANSWER = (
     "我是 BovinBI 的 Python Agent(LangGraph 驱动):把一句自然语言变成 SQL 并执行出图表,"
     "支持趋势/TopN/占比/分组/单值指标。试试:销售额Top10商品类目 / 各客户州销售额。"
@@ -135,6 +143,18 @@ def route_after_intent(state: AgentState) -> Literal["chitchat", "agent", "fallb
 
 
 def chitchat_node(state: AgentState) -> dict:
+    """三角色 · 角色二(闲聊 AI):LLM 自由对话;离线/失败回落固定文案"""
+    llm = _llm()
+    if llm:
+        try:
+            reply = llm.invoke([SystemMessage(content=CHAT_SYSTEM),
+                                HumanMessage(content=state["question"])]).content
+            reply = (reply or "").strip()
+            if reply:
+                return {"explanation": reply, "row_count": 0, "fallback": False,
+                        "steps": [{"name": "闲聊AI", "detail": "对话式回答", "ok": True}]}
+        except Exception:  # noqa: BLE001
+            pass  # LLM 失败回落固定文案(离线兜底)
     q = state["question"]
     if any(k in q for k in ("谢谢", "多谢", "感谢")):
         text = "不客气!还想看什么数据,直接问就行。"
@@ -143,7 +163,7 @@ def chitchat_node(state: AgentState) -> dict:
     else:
         text = CHIT_CHAT_ANSWER
     return {"explanation": text, "row_count": 0, "fallback": False,
-            "steps": [{"name": "闲聊直答", "detail": "非取数问题,不生成 SQL", "ok": True}]}
+            "steps": [{"name": "闲聊直答", "detail": "离线固定文案", "ok": True}]}
 
 
 def _extract_json(text: str) -> Optional[dict]:

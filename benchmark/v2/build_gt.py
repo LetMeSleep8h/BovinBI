@@ -40,7 +40,12 @@ def load():
 
 
 FARMS, CATTLE, FACTS = load()
-ANCHOR = date.today()
+# 锚点:数据窗口冻结在 2025-09~2026-08,今日跑批会让"上月"落在窗口外恒空。
+# 默认锚定数据末日;可用 BENCH_ANCHOR=YYYY-MM-DD 显式覆盖(复现历史报告)
+ANCHOR = min(date.today(), date(2026, 8, 25))
+if os.environ.get("BENCH_ANCHOR"):
+    y, m, d = map(int, os.environ["BENCH_ANCHOR"].split("-"))
+    ANCHOR = date(y, m, d)
 
 
 def resolve_period(p):
@@ -69,9 +74,10 @@ def fact_filter(filters):
 
 AGG = {
     "sum_milk": lambda rows: sum(r["milk"] for r in rows),
-    "avg_milk": lambda rows: sum(r["milk"] for r in rows) / len(rows),
-    "avg_fat": lambda rows: sum(r["fat"] for r in rows) / len(rows),
-    "avg_protein": lambda rows: sum(r["protein"] for r in rows) / len(rows),
+    # 空集保护:均值对空集返回 0(真值口径"区间内无记录=0";评测端空结果判 HONEST,不会误判 PASS)
+    "avg_milk": lambda rows: (sum(r["milk"] for r in rows) / len(rows)) if rows else 0.0,
+    "avg_fat": lambda rows: (sum(r["fat"] for r in rows) / len(rows)) if rows else 0.0,
+    "avg_protein": lambda rows: (sum(r["protein"] for r in rows) / len(rows)) if rows else 0.0,
     "count_cattle": lambda rows: len({r["cattle_id"] for r in rows}),
 }
 

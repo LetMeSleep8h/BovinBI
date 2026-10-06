@@ -202,6 +202,7 @@ def main():
     ap.add_argument("--user", default="admin")
     ap.add_argument("--password", default="bovin123")
     ap.add_argument("--gt", default=os.path.join(HERE, "gt.json"))
+    ap.add_argument("--engine", default=None, help="提问引擎(java/python);不传=后端默认")
     args = ap.parse_args()
 
     gt = json.load(open(args.gt, encoding="utf-8"))
@@ -217,7 +218,10 @@ def main():
     for c in gt["cases"]:
         t0 = time.perf_counter()
         try:
-            resp = call(args.base, "/api/chat/ask", {"sessionId": sid, "question": c["q"]}, token)
+            payload = {"sessionId": sid, "question": c["q"]}
+            if args.engine:
+                payload["engine"] = args.engine
+            resp = call(args.base, "/api/chat/ask", payload, token)
             ans = Answer((resp.get("data") or {}).get("payload"))
         except Exception as e:
             results.append(dict(c, verdict=ERROR, detail=f"HTTP 异常:{e}", took=0, engine="?", sql=""))

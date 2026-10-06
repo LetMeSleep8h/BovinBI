@@ -198,27 +198,31 @@ onMounted(async () => {
       </div>
 
       <div class="chat-input-area">
-        <div class="input-wrap">
-          <el-input v-model="question" type="textarea" :rows="2" resize="none"
-                    placeholder="试试问:销售额Top10商品类目 / 各客户州销售额(Enter 发送)"
+        <div class="input-box">
+          <el-input v-model="question" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" resize="none"
+                    class="input-textarea"
+                    placeholder="问点什么,或随便聊聊 —— 销售额Top10商品类目 / 今天心情不好陪我聊两句(Enter 发送,Shift+Enter 换行)"
                     @keydown.enter.exact.prevent="send()" />
-          <div class="input-opts">
-            <el-radio-group v-model="engine" size="small">
-              <el-radio-button value="java">☕ Java 引擎</el-radio-button>
-              <el-radio-button value="python">🐍 Python Agent</el-radio-button>
-            </el-radio-group>
-            <el-select v-model="model" size="small" placeholder="默认模型" style="width: 168px">
-              <el-option v-for="m in models" :key="m.id" :label="m.label" :value="m.id" />
-            </el-select>
-            <el-select v-model="approvalMode" size="small" style="width: 132px" @change="onModeChange">
-              <el-option value="AUTO" label="⚡ 完全允许" />
-              <el-option value="STEP" label="🔒 每步确认" />
-            </el-select>
+          <div class="input-bottom">
+            <div class="input-opts">
+              <el-radio-group v-model="engine" size="small">
+                <el-radio-button value="java">☕ Java</el-radio-button>
+                <el-radio-button value="python">🐍 Python</el-radio-button>
+              </el-radio-group>
+              <el-select v-model="model" size="small" placeholder="默认模型" class="opt-select wide">
+                <el-option v-for="m in models" :key="m.id" :label="m.label" :value="m.id" />
+              </el-select>
+              <el-select v-model="approvalMode" size="small" class="opt-select" @change="onModeChange">
+                <el-option value="AUTO" label="⚡ 完全允许" />
+                <el-option value="STEP" label="🔒 每步确认" />
+              </el-select>
+            </div>
+            <button class="send-btn" :disabled="sending || !question.trim()" @click="send()">
+              <el-icon :size="18"><Promotion /></el-icon>
+            </button>
           </div>
-          <el-button type="primary" size="large" :icon="Promotion" :loading="sending" @click="send()">
-            发送
-          </el-button>
         </div>
+        <div class="input-hint">Enter 发送 · Shift+Enter 换行 · 引擎/模型/权限随问随切</div>
       </div>
     </div>
   </div>
@@ -229,7 +233,64 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+}
+.opt-select { width: 128px; }
+.opt-select.wide { width: 160px; }
+
+/* ChatGPT 式大输入框:圆角容器 + 无边框 textarea + 内嵌底栏 */
+.input-box {
+  max-width: 880px;
+  margin: 0 auto;
+  border: 1.5px solid #dcdfe6;
+  border-radius: 16px;
+  background: #fff;
+  padding: 6px 10px 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-box:focus-within {
+  border-color: #409eff;
+  box-shadow: 0 2px 16px rgba(64, 158, 255, 0.18);
+}
+.input-box :deep(.input-textarea .el-textarea__inner) {
+  border: none;
+  box-shadow: none;
+  padding: 8px 10px 4px;
+  font-size: 15px;
+  line-height: 1.6;
+  background: transparent;
+}
+.input-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 0;
+}
+.send-btn {
   flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: none;
+  background: #409eff;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.1s;
+}
+.send-btn:hover:not(:disabled) { background: #337ecc; }
+.send-btn:active:not(:disabled) { transform: scale(0.95); }
+.send-btn:disabled { background: #c0c4cc; cursor: not-allowed; }
+.input-hint {
+  max-width: 880px;
+  margin: 8px auto 0;
+  text-align: center;
+  font-size: 12px;
+  color: #c0c4cc;
 }
 .live-steps {
   display: flex;

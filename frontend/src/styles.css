@@ -62,9 +62,8 @@ body {
   overflow: auto; max-height: 260px; white-space: pre-wrap; word-break: break-all;
 }
 
-.chat-input-area { border-top: 1px solid #e6e8eb; background: #fff; padding: 14px 28px; }
-.input-wrap { display: flex; gap: 10px; max-width: 880px; }
-.input-wrap .el-textarea { flex: 1; }
+.chat-input-area { background: #fff; padding: 10px 28px 14px; }
+.msg-scroll { padding-bottom: 8px; }
 
 .welcome { padding: 48px 0; text-align: center; }
 .welcome h2 { color: #1f2d3d; margin-bottom: 8px; }

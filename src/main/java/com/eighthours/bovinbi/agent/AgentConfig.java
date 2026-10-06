@@ -1,6 +1,8 @@
 package com.eighthours.bovinbi.agent;
 
 import com.eighthours.bovinbi.config.BovinProperties;
+import com.eighthours.bovinbi.llm.ModelContext;
+import java.util.List;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -36,18 +38,44 @@ public class AgentConfig {
     public BovinAgent bovinAgent(BovinProperties props, BovinTools bovinTools) {
         BovinProperties.Llm c = props.getLlm();
         BovinProperties.Agent ac = props.getChat().getAgent();
-        ChatLanguageModel model = OpenAiChatModel.builder()
-                .baseUrl(c.getBaseUrl())
-                .apiKey(c.getApiKey())
-                .modelName(c.getModel())
-                .temperature(c.getTemperature())
-                // Agent 循环专属超时/重试:单次等待更短且不重试 —— 工具循环自带"报错回喂重试"语义,
-                // HTTP 层重试会把(超时×重试)叠加到多轮循环上,慢端点下整次问答远超前端超时
-                .maxRetries(ac.getLlmMaxRetries())
-                .timeout(Duration.ofSeconds(ac.getLlmTimeoutSeconds()))
-                .logRequests(c.isLogRequests())
-                .logResponses(c.isLogResponses())
-                .build();
+        // 路由模型:每次 generate 时按 ModelContext 解析当前请求选择的模型
+        // (V4 Flash/V4 Pro/标准),实例按模型名缓存并沿用 Agent 循环专属的超时/重试
+        java.util.concurrent.ConcurrentHashMap<String, ChatLanguageModel> cache = new java.util.concurrent.ConcurrentHashMap<>();
+        ChatLanguageModel model = new ChatLanguageModel() {
+            private ChatLanguageModel current() {
+                return cache.computeIfAbsent(ModelContext.getOrDefault(c.getModel()), n ->
+                        OpenAiChatModel.builder()
+                                .baseUrl(c.getBaseUrl())
+                                .apiKey(c.getApiKey())
+                                .modelName(n)
+                                .temperature(c.getTemperature())
+                                .maxRetries(ac.getLlmMaxRetries())
+                                .timeout(Duration.ofSeconds(ac.getLlmTimeoutSeconds()))
+                                .logRequests(c.isLogRequests())
+                                .logResponses(c.isLogResponses())
+                                .build());
+            }
+
+            @Override
+            public dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage> generate(
+                    List<dev.langchain4j.data.message.ChatMessage> messages) {
+                return current().generate(messages);
+            }
+
+            @Override
+            public dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage> generate(
+                    List<dev.langchain4j.data.message.ChatMessage> messages,
+                    dev.langchain4j.agent.tool.ToolSpecification toolSpecification) {
+                return current().generate(messages, toolSpecification);
+            }
+
+            @Override
+            public dev.langchain4j.model.output.Response<dev.langchain4j.data.message.AiMessage> generate(
+                    List<dev.langchain4j.data.message.ChatMessage> messages,
+                    List<dev.langchain4j.agent.tool.ToolSpecification> toolSpecifications) {
+                return current().generate(messages, toolSpecifications);
+            }
+        };
         log.info("BovinAgent 已装配: model={}, 工具预算: 总{}次/SQL{}次/记忆窗口{}条",
                 c.getModel(),
                 props.getChat().getAgent().getMaxToolCalls(),

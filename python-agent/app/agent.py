@@ -61,18 +61,25 @@ CHIT_CHAT_ANSWER = (
 )
 
 
-def _llm() -> Optional[ChatOpenAI]:
-    """配了 Key 才有 LLM 节点;离线时图退化为闲聊关键词 + 兜底提示(仍走 MCP 健康检查路径)"""
+_LLM_CACHE: dict[str, ChatOpenAI] = {}
+
+
+def _llm(model: Optional[str] = None) -> Optional[ChatOpenAI]:
+    """按模型名缓存实例(V4 Flash/V4 Pro/标准…);未指定回落 LLM_MODEL 环境默认。
+    离线(无 Key)返回 None,图退化为闲聊关键词 + 兜底提示。"""
     if not LLM_API_KEY:
         return None
-    return ChatOpenAI(
-        base_url=LLM_BASE_URL.rstrip("/"),
-        api_key=LLM_API_KEY,
-        model=LLM_MODEL,
-        temperature=0.0,
-        timeout=90,
-        max_retries=1,
-    )
+    name = (model or LLM_MODEL).strip() or LLM_MODEL
+    if name not in _LLM_CACHE:
+        _LLM_CACHE[name] = ChatOpenAI(
+            base_url=LLM_BASE_URL.rstrip("/"),
+            api_key=LLM_API_KEY,
+            model=name,
+            temperature=0.0,
+            timeout=90,
+            max_retries=1,
+        )
+    return _LLM_CACHE[name]
 
 
 def _mcp_client() -> MultiServerMCPClient:
@@ -87,9 +94,10 @@ def _mcp_client() -> MultiServerMCPClient:
 
 
 class AgentState(TypedDict):
-    """图的状态:问题 + 引擎结果字段(与 Java AnswerPayload 对齐)+ 步骤轨迹"""
+    """图的状态:问题 + 模型 + 引擎结果字段(与 Java AnswerPayload 对齐)+ 步骤轨迹"""
     question: str
     dataset_id: int
+    model: str | None
     sql: Optional[str]
     explanation: Optional[str]
     columns: list
@@ -105,7 +113,7 @@ class AgentState(TypedDict):
 def intent_node(state: AgentState) -> dict:
     """意图判定:LLM 一个词的判决;失败/离线退回关键词"""
     q = state["question"].strip()
-    llm = _llm()
+    llm = _llm(state.get("model"))
     if llm:
         try:
             verdict = llm.invoke([SystemMessage(content=INTENT_SYSTEM),
@@ -130,7 +138,7 @@ def _keyword_chitchat(q: str) -> bool:
 
 def route_after_intent(state: AgentState) -> Literal["chitchat", "agent", "fallback"]:
     """路由:按意图节点的判定 + LLM 可用性分流"""
-    if not _llm():
+    if not _llm(state.get("model")):
         steps = state.get("steps") or []
         if steps and "闲聊" in (steps[-1].get("detail") or ""):
             return "chitchat"
@@ -144,7 +152,7 @@ def route_after_intent(state: AgentState) -> Literal["chitchat", "agent", "fallb
 
 def chitchat_node(state: AgentState) -> dict:
     """三角色 · 角色二(闲聊 AI):LLM 自由对话;离线/失败回落固定文案"""
-    llm = _llm()
+    llm = _llm(state.get("model"))
     if llm:
         try:
             reply = llm.invoke([SystemMessage(content=CHAT_SYSTEM),
@@ -211,7 +219,7 @@ def _run_async(coro):
 
 def agent_node(state: AgentState) -> dict:
     """ReAct Agent 节点:LLM + MCP 工具循环(框架驱动),从最终消息解析 SQL 与结论"""
-    llm = _llm()
+    llm = _llm(state.get("model"))
     started = time.time()
 
     async def _run():
@@ -267,7 +275,7 @@ def agent_node(state: AgentState) -> dict:
 
 
 def fallback_node(state: AgentState) -> dict:
-    offline = not LLM_API_KEY
+    offline = not _llm(state.get("model"))
     hint = ("Python Agent 离线模式仅支持闲聊;配置 LLM_API_KEY 后即可完整回答取数问题"
             if offline else "未能理解或执行该问题,可换个问法重试")
     return {"fallback": True, "fallback_hint": hint, "row_count": 0,
@@ -294,11 +302,11 @@ def build_graph():
 GRAPH = build_graph()
 
 
-def answer(dataset_id: int, question: str) -> dict:
+def answer(dataset_id: int, question: str, model: str | None = None) -> dict:
     """入口:跑图,把状态映射为与 Java AnswerPayload 同构的字典"""
     started = time.time()
     try:
-        final = GRAPH.invoke({"question": question, "dataset_id": dataset_id},
+        final = GRAPH.invoke({"question": question, "dataset_id": dataset_id, "model": model},
                              config={"recursion_limit": 30})
     except Exception as e:  # noqa: BLE001
         return {"sql": None, "explanation": None, "columns": [], "rows": [], "rowCount": 0,

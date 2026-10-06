@@ -15,8 +15,8 @@ export const deleteSession = (id: number) => http.delete(`/chat/sessions/${id}`)
 
 export const listMessages = (sessionId: number) => http.get<never, any[]>(`/chat/sessions/${sessionId}/messages`)
 
-export const ask = (sessionId: number, question: string, engine?: string) =>
-  http.post<never, any>('/chat/ask', { sessionId, question, engine })
+export const ask = (sessionId: number, question: string, engine?: string, model?: string) =>
+  http.post<never, any>('/chat/ask', { sessionId, question, engine, model })
 
 /**
  * 流式问答(SSE):实时回调每一步 AI 工作内容(意图识别/Schema召回/工具调用…),
@@ -27,7 +27,8 @@ export async function askStream(
   question: string,
   onStep: (step: { seq: number; name: string; detail: string; ok: boolean }) => void,
   onApproval?: (a: { queryId: number; sql: string; explanation: string }) => Promise<boolean>,
-  engine?: string
+  engine?: string,
+  model?: string
 ): Promise<any> {
   const token = localStorage.getItem('bovin_token')
   const resp = await fetch('/api/chat/ask/stream', {
@@ -36,7 +37,7 @@ export async function askStream(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ sessionId, question, engine })
+    body: JSON.stringify({ sessionId, question, engine, model })
   })
   if (!resp.ok || !resp.body) throw new Error(`stream HTTP ${resp.status}`)
   const reader = resp.body.getReader()
@@ -101,3 +102,11 @@ export const tokenUsage = (days: number, all = false) =>
 
 export const tokenUsageToday = (all = false) =>
   http.get<never, any>('/usage/tokens/today', { params: { all } })
+
+/** 模型目录(引擎旁的模型下拉) */
+export const listLlmModels = () =>
+  http.get<never, { id: string; label: string }[]>('/llm/models')
+
+/** 权限划分(完全允许/每一步过问,每用户独立存储) */
+export const setApprovalMode = (mode: string) =>
+  http.put('/auth/approval-mode', { mode })

@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { DataAnalysis, ChatDotRound, Coin, Document, MagicStick, SwitchButton } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
-import http from '@/api/http'
-
 const router = useRouter()
 const route = useRoute()
 const store = useUserStore()
@@ -13,17 +10,6 @@ const store = useUserStore()
 onMounted(() => {
   store.fetchMe().catch(() => undefined)
 })
-
-function modeLabel(mode: string) {
-  const cur = store.user?.approvalMode || 'AUTO'
-  return `${cur === mode ? '✅ ' : ''}${mode === 'AUTO' ? '完全允许(自动执行)' : '每一步过问(执行前确认)'}`
-}
-
-async function setMode(mode: string) {
-  await http.put('/auth/approval-mode', { mode })
-  await store.fetchMe()
-  ElMessage.success(mode === 'AUTO' ? '已切换:完全允许' : '已切换:每一步过问')
-}
 
 function logout() {
   store.logout()
@@ -45,10 +31,7 @@ function logout() {
         </span>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item divided disabled>AI 执行权限</el-dropdown-item>
-            <el-dropdown-item @click="setMode('AUTO')">{{ modeLabel('AUTO') }}</el-dropdown-item>
-            <el-dropdown-item @click="setMode('STEP')">{{ modeLabel('STEP') }}</el-dropdown-item>
-            <el-dropdown-item divided @click="logout">
+            <el-dropdown-item @click="logout">
               <el-icon><SwitchButton /></el-icon>退出登录
             </el-dropdown-item>
           </el-dropdown-menu>

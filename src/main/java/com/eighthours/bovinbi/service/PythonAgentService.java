@@ -39,12 +39,17 @@ public class PythonAgentService {
     }
 
     /** 转发提问并映射为 AnswerPayload(engine 固定为 PYTHON,steps 转 trace) */
-    public AnswerPayload answer(Long datasetId, String question, Long sessionId) {
+    public AnswerPayload answer(Long datasetId, String question, Long sessionId, String model) {
         var cfg = props.getPythonAgent();
         try {
-            String body = objectMapper.writeValueAsString(java.util.Map.of(
-                    "datasetId", datasetId, "question", question,
-                    "sessionId", sessionId == null ? 0 : sessionId));
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("datasetId", datasetId);
+            payload.put("question", question);
+            payload.put("sessionId", sessionId == null ? 0 : sessionId);
+            if (model != null && !model.isBlank()) {
+                payload.put("model", model.trim());
+            }
+            String body = objectMapper.writeValueAsString(payload);
             HttpRequest req = HttpRequest.newBuilder(URI.create(cfg.getUrl() + "/v1/answer"))
                     .timeout(Duration.ofSeconds(cfg.getTimeoutSeconds()))
                     .header("Content-Type", "application/json")

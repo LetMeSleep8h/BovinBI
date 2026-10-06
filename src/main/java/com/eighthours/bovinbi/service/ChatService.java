@@ -21,6 +21,7 @@ import com.eighthours.bovinbi.response.ChatParseResp;
 import com.eighthours.bovinbi.security.ApprovalHub;
 import com.eighthours.bovinbi.security.UserContext;
 import com.eighthours.bovinbi.trace.TraceHub;
+import com.eighthours.bovinbi.llm.ModelContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -99,12 +100,26 @@ public class ChatService {
     }
 
     public MessageVO ask(Long sessionId, String question, String engine) {
-        return runAsk(sessionId, question, -1L, engine);
+        return ask(sessionId, question, engine, null);
+    }
+
+    public MessageVO ask(Long sessionId, String question, String engine, String model) {
+        try {
+            ModelContext.set(model);
+            return runAsk(sessionId, question, -1L, engine);
+        } finally {
+            ModelContext.clear();
+        }
     }
 
     /** 流式问答:阶段经 TraceHub 实时推送(见 ChatController /ask/stream),最终消息随 done 事件返回 */
-    public MessageVO askStream(Long sessionId, String question, long queryId, String engine) {
-        return runAsk(sessionId, question, queryId, engine);
+    public MessageVO askStream(Long sessionId, String question, long queryId, String engine, String model) {
+        try {
+            ModelContext.set(model);
+            return runAsk(sessionId, question, queryId, engine);
+        } finally {
+            ModelContext.clear();
+        }
     }
 
     /**
@@ -114,7 +129,8 @@ public class ChatService {
     private AnswerPayload answerByPython(ChatSession session, String question, long queryId) {
         TraceHub.publish(queryId, "引擎执行", "Python Agent(跨语言,MCP 回环执行)", true);
         try {
-            AnswerPayload p = pythonAgentService.answer(session.getDatasetId(), question, session.getId());
+            AnswerPayload p = pythonAgentService.answer(session.getDatasetId(), question,
+                    session.getId(), ModelContext.get());
             // Python 侧步骤在响应里带回:推上实时流(准实时,完整步骤随载荷返回)
             if (p.getTrace() != null) {
                 p.getTrace().forEach(t -> TraceHub.publish(queryId,
@@ -211,7 +227,8 @@ public class ChatService {
     private String smallTalk(ChatSession session, String question, String engine) {
         if ("python".equalsIgnoreCase(engine)) {
             try {
-                AnswerPayload p = pythonAgentService.answer(session.getDatasetId(), question, session.getId());
+                AnswerPayload p = pythonAgentService.answer(session.getDatasetId(), question,
+                    session.getId(), ModelContext.get());
                 if (!p.isFallback() && p.getExplanation() != null && !p.getExplanation().isBlank()) {
                     return p.getExplanation();
                 }

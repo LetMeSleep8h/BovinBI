@@ -3,8 +3,10 @@ import { nextTick, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Delete, Promotion } from '@element-plus/icons-vue'
 import {
-  ask, askStream, createSession, deleteSession, listDatasets, listMessages, listSessions
+  ask, askStream, createSession, deleteSession, listDatasets, listLlmModels,
+  listMessages, listSessions, setApprovalMode
 } from '@/api'
+import { useUserStore } from '@/store/user'
 import type { ChatMessage, ChatSession, Dataset } from '@/api/types'
 import AnswerCard from '@/components/AnswerCard.vue'
 
@@ -14,8 +16,21 @@ const messages = ref<ChatMessage[]>([])
 const question = ref('')
 const sending = ref(false)
 const datasets = ref<Dataset[]>([])
+const userStore = useUserStore()
+
 /** 提问引擎:python(Python Agent,离线也能答电商)/ java(底座链路),可随时切换 */
 const engine = ref<'java' | 'python'>('python')
+
+/** 模型选择(V4 Flash/V4 Pro/标准):空=后端配置默认,按请求生效 */
+const models = ref<{ id: string; label: string }[]>([])
+const model = ref('')
+
+/** 权限划分(每用户独立存储):AUTO 完全允许 / STEP 每一步过问 */
+const approvalMode = ref('AUTO')
+async function onModeChange(mode: string) {
+  await setApprovalMode(mode)
+  ElMessage.success(mode === 'AUTO' ? '已切换:完全允许' : '已切换:每一步过问')
+}
 
 /** 实时工作流:流式问答过程中收到的 AI 工作步骤 */
 const liveSteps = ref<{ seq: number; name: string; detail: string; ok: boolean }[]>([])
@@ -96,12 +111,12 @@ async function send(q?: string) {
       } catch {
         return false
       }
-    }, engine.value)
+    }, engine.value, model.value || undefined)
     messages.value.push(bot)
   } catch (e) {
     // 流式失败降级回一次性问答,演示不中断
     try {
-      const bot = await ask(currentId.value!, text, engine.value)
+      const bot = await ask(currentId.value!, text, engine.value, model.value || undefined)
       messages.value.push(bot)
     } catch (ignore) {
       // 两条路都失败:静默(全局拦截器已提示)
@@ -120,6 +135,8 @@ async function scrollBottom() {
 
 onMounted(async () => {
   datasets.value = await listDatasets()
+  listLlmModels().then(list => { models.value = list || [] }).catch(() => undefined)
+  userStore.fetchMe().then(u => { approvalMode.value = u?.approvalMode || 'AUTO' }).catch(() => undefined)
   await loadSessions()
   if (sessions.value.length) await selectSession(sessions.value[0].id)
   else await newChat()
@@ -185,10 +202,19 @@ onMounted(async () => {
           <el-input v-model="question" type="textarea" :rows="2" resize="none"
                     placeholder="试试问:销售额Top10商品类目 / 各客户州销售额(Enter 发送)"
                     @keydown.enter.exact.prevent="send()" />
-          <el-radio-group v-model="engine" size="small" style="flex: none">
-            <el-radio-button value="java">☕ Java 引擎</el-radio-button>
-            <el-radio-button value="python">🐍 Python Agent</el-radio-button>
-          </el-radio-group>
+          <div class="input-opts">
+            <el-radio-group v-model="engine" size="small">
+              <el-radio-button value="java">☕ Java 引擎</el-radio-button>
+              <el-radio-button value="python">🐍 Python Agent</el-radio-button>
+            </el-radio-group>
+            <el-select v-model="model" size="small" placeholder="默认模型" style="width: 168px">
+              <el-option v-for="m in models" :key="m.id" :label="m.label" :value="m.id" />
+            </el-select>
+            <el-select v-model="approvalMode" size="small" style="width: 132px" @change="onModeChange">
+              <el-option value="AUTO" label="⚡ 完全允许" />
+              <el-option value="STEP" label="🔒 每步确认" />
+            </el-select>
+          </div>
           <el-button type="primary" size="large" :icon="Promotion" :loading="sending" @click="send()">
             发送
           </el-button>
@@ -199,6 +225,12 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.input-opts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: none;
+}
 .live-steps {
   display: flex;
   flex-direction: column;

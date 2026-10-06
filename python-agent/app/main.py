@@ -20,6 +20,7 @@ class AnswerReq(BaseModel):
     datasetId: int
     question: str
     sessionId: int | None = None
+    model: str | None = None  # 按请求选模型(V4 Flash/V4 Pro/标准);空=环境默认
 
 
 class AnswerResp(BaseModel):
@@ -56,4 +57,4 @@ def health():
 
 @app.post("/v1/answer", response_model=AnswerResp)
 def answer(req: AnswerReq):
-    return agent.answer(req.datasetId, req.question)
+    return agent.answer(req.datasetId, req.question, req.model)

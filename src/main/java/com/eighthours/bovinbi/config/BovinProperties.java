@@ -106,6 +106,11 @@ public class BovinProperties {
 
     @Data
     public static class Llm {
+        /** 可选模型目录(前端模型下拉的数据源);默认第一项为高亮项,选择即按请求生效 */
+        private List<ModelOption> models = new ArrayList<>(List.of(
+                new ModelOption("deepseek-v4-flash", "⚡ V4 Flash(快·省)"),
+                new ModelOption("deepseek-v4-pro", "🧠 V4 Pro(更强)"),
+                new ModelOption("deepseek-chat", "标准 chat")));
         private String provider = "mock";   // mock / openai(OpenAI 兼容协议)
         private String baseUrl = "https://api.deepseek.com";
         private String apiKey = "";
@@ -115,6 +120,18 @@ public class BovinProperties {
         private int maxRetries = 2;
         private boolean logRequests = false;
         private boolean logResponses = false;
+    }
+
+    /** 模型目录项:id 即 API model 名,label 为前端展示 */
+    @Data
+    public static class ModelOption {
+        private final String id;
+        private final String label;
+
+        public ModelOption(String id, String label) {
+            this.id = id;
+            this.label = label;
+        }
     }
 
     @Data

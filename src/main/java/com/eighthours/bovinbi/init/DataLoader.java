@@ -91,7 +91,7 @@ public class DataLoader implements ApplicationRunner {
             User admin = new User();
             admin.setUsername("admin");
             admin.setPassword(authService.encode("bovin123"));
-            admin.setNickname("牧场数据分析师");
+            admin.setNickname("用户001");
             admin.setRole("ADMIN");
             userMapper.insert(admin);
             log.info("初始化种子用户 admin/bovin123");

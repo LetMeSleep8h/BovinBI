@@ -477,7 +477,7 @@ public class ChatQueryServiceImpl implements ChatQueryService {
                         // (模型决定调哪个工具 → 执行 @Tool 方法 → 结果回喂 → 直至最终回答),应用侧不手写循环
                         BovinProperties.Llm lc = props.getLlm();
                         ChatLanguageModel agentModel = OpenAiChatModel.builder()
-                                .baseUrl(lc.getBaseUrl()).apiKey(lc.getApiKey()).modelName(lc.getModel())
+                                .baseUrl(lc.getBaseUrl()).apiKey(lc.getApiKey()).modelName(com.eighthours.bovinbi.llm.ModelContext.getOrDefault(lc.getModel()))
                                 .temperature(lc.getTemperature())
                                 // Agent 循环专属超时/重试(短超时、零重试):循环自带"报错回喂重试"语义,
                                 // HTTP 层重试会把耗时叠加到多轮循环上,慢端点下拖垮整次问答
@@ -542,7 +542,7 @@ public class ChatQueryServiceImpl implements ChatQueryService {
                             // 当场构建模型(演示每请求新建;生产应懒加载复用,参照 LangChain4jClient 双检锁)
                             BovinProperties.Llm lc = props.getLlm();
                             ChatLanguageModel model = OpenAiChatModel.builder()
-                                    .baseUrl(lc.getBaseUrl()).apiKey(lc.getApiKey()).modelName(lc.getModel())
+                                    .baseUrl(lc.getBaseUrl()).apiKey(lc.getApiKey()).modelName(com.eighthours.bovinbi.llm.ModelContext.getOrDefault(lc.getModel()))
                                     .temperature(lc.getTemperature()).maxRetries(lc.getMaxRetries())
                                     .timeout(Duration.ofSeconds(lc.getTimeoutSeconds()))
                                     .logRequests(lc.isLogRequests()).logResponses(lc.isLogResponses())

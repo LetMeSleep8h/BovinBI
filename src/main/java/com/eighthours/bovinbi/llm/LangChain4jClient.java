@@ -34,7 +34,9 @@ public class LangChain4jClient implements LlmClient {
 
     private final BovinProperties props;
     private final ObjectMapper objectMapper;
-    private volatile ChatLanguageModel chatModel;
+    /** 按模型名缓存的实例(V4 Flash/V4 Pro/标准…并发安全);DNS 友好重试在外层 */
+    private final java.util.concurrent.ConcurrentHashMap<String, ChatLanguageModel> models =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     private final TokenUsageService tokenUsageService;
 
@@ -45,26 +47,23 @@ public class LangChain4jClient implements LlmClient {
         this.tokenUsageService = tokenUsageService;
     }
 
-    /** 懒构建:首次调用才创建模型实例,provider=mock 时零外部依赖启动 */
+    /**
+     * 当前请求应使用的模型实例:ModelContext(前端按请求选择)优先,
+     * 回落 bovin.llm.model 默认;实例按模型名缓存,创建一次复用。
+     */
     private ChatLanguageModel model() {
-        if (chatModel == null) {
-            synchronized (this) {
-                if (chatModel == null) {
-                    BovinProperties.Llm c = props.getLlm();
-                    chatModel = OpenAiChatModel.builder()
-                            .baseUrl(c.getBaseUrl())
-                            .apiKey(c.getApiKey())
-                            .modelName(c.getModel())
-                            .temperature(c.getTemperature())
-                            .maxRetries(c.getMaxRetries())
-                            .timeout(Duration.ofSeconds(c.getTimeoutSeconds()))
-                            .logRequests(c.isLogRequests())
-                            .logResponses(c.isLogResponses())
-                            .build();
-                }
-            }
-        }
-        return chatModel;
+        BovinProperties.Llm c = props.getLlm();
+        String name = ModelContext.getOrDefault(c.getModel());
+        return models.computeIfAbsent(name, n -> OpenAiChatModel.builder()
+                .baseUrl(c.getBaseUrl())
+                .apiKey(c.getApiKey())
+                .modelName(n)
+                .temperature(c.getTemperature())
+                .maxRetries(c.getMaxRetries())
+                .timeout(Duration.ofSeconds(c.getTimeoutSeconds()))
+                .logRequests(c.isLogRequests())
+                .logResponses(c.isLogResponses())
+                .build());
     }
 
     @Override

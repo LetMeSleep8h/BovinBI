@@ -108,4 +108,5 @@ export interface UserInfo {
   username: string
   nickname: string
   role: string
+  approvalMode?: string
 }

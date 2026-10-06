@@ -51,7 +51,7 @@ onMounted(async () => {
     <el-row :gutter="16" style="margin-bottom: 16px">
       <el-col v-for="ds in datasets" :key="ds.id" :span="8">
         <el-card shadow="hover" @click="loadFields(ds)"
-                 :style="activeDataset?.id === ds.id ? 'border-color:#409eff;cursor:pointer' : 'cursor:pointer'">
+                 :style="activeDataset?.id === ds.id ? 'border-color:#111;cursor:pointer' : 'cursor:pointer'">
           <div style="font-weight: 600">{{ ds.name }}</div>
           <div class="muted" style="margin: 8px 0">{{ ds.description }}</div>
           <div><el-tag size="small">物理表:{{ ds.dwhTables }}</el-tag></div>

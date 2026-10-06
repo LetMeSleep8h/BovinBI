@@ -30,7 +30,7 @@ async function submit() {
   <div class="login-bg">
     <el-card class="login-card">
       <div class="login-title">
-        <el-icon :size="26" color="#409eff"><DataAnalysis /></el-icon>
+        <el-icon :size="26" color="#fff"><DataAnalysis /></el-icon>
         <span>BovinBI · 对话式商业智能</span>
       </div>
       <div class="login-sub">自然语言提问,一键生成 SQL 与可视化图表</div>
@@ -54,7 +54,7 @@ async function submit() {
 .login-bg {
   height: 100vh;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #1f2d3d 0%, #2b4a6f 100%);
+  background: #000;
 }
 .login-card { width: 380px; padding: 10px 6px; }
 .login-title { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; font-weight: 600; }

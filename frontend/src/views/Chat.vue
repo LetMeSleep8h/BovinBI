@@ -250,8 +250,8 @@ onMounted(async () => {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .input-box:focus-within {
-  border-color: #409eff;
-  box-shadow: 0 2px 16px rgba(64, 158, 255, 0.18);
+  border-color: #111;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.14);
 }
 .input-box :deep(.input-textarea .el-textarea__inner) {
   border: none;
@@ -274,7 +274,7 @@ onMounted(async () => {
   height: 40px;
   border-radius: 12px;
   border: none;
-  background: #409eff;
+  background: #111;
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -282,9 +282,9 @@ onMounted(async () => {
   justify-content: center;
   transition: background 0.2s, transform 0.1s;
 }
-.send-btn:hover:not(:disabled) { background: #337ecc; }
+.send-btn:hover:not(:disabled) { background: #333; }
 .send-btn:active:not(:disabled) { transform: scale(0.95); }
-.send-btn:disabled { background: #c0c4cc; cursor: not-allowed; }
+.send-btn:disabled { background: #d4d4d4; cursor: not-allowed; }
 .input-hint {
   max-width: 880px;
   margin: 8px auto 0;

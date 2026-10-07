@@ -67,7 +67,9 @@ public class McpToolRegistry {
             case "getSchema" -> 2;
             case "getColumnValues" -> 4;
             case "exportReport" -> 3;
-            default -> -1; // 不计预算
+            case "refreshSchema" -> 2;
+            case "previewQuery" -> 4;   // 干跑不占执行预算,给宽些供候选筛选
+            default -> -1;              // interpretTime/cacheStatus 只读零成本,不计预算
         };
         boolean mutator = name.toLowerCase().contains("import") || name.toLowerCase().contains("batchimport");
         return ToolSpec.of(name, def.description(), def.inputSchema(), quota, mutator);

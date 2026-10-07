@@ -59,6 +59,32 @@ public class BovinTools {
         return registry.call("executeSql", args).text();
     }
 
+    @Tool("刷新数据集的 Schema 召回缓存与表白名单。刚导入数据或管理员改过字段口径后、再取 Schema 前调用。")
+    public String refreshSchema() {
+        Map<String, Object> args = new HashMap<>();
+        return registry.call("refreshSchema", args).text();
+    }
+
+    @Tool("干跑校验一条 SQL(AST/白名单/LIMIT),不执行、不消耗执行预算。正式执行前自检或候选筛选用。")
+    public String previewQuery(String sql) {
+        Map<String, Object> args = new HashMap<>();
+        args.put("sql", sql);
+        return registry.call("previewQuery", args).text();
+    }
+
+    @Tool("把自然语言时间表达(上个月/今年/近30天/2027年3月)解析为准确的日期区间字面量。写含时间的 SQL 前先调用,避免相对时间算错。")
+    public String interpretTime(String expression) {
+        Map<String, Object> args = new HashMap<>();
+        args.put("expression", expression);
+        return registry.call("interpretTime", args).text();
+    }
+
+    @Tool("查看语义缓存命中率与请求数(只读)。判断问题是否刚被问过、排查秒回原因。")
+    public String cacheStatus() {
+        Map<String, Object> args = new HashMap<>();
+        return registry.call("cacheStatus", args).text();
+    }
+
     /** 只读导出(注册中心里的 exportReport);批量导入是写操作,刻意不暴露给模型 —— Agent 循环保持只读 */
     @Tool("把一条查询结果导出为 CSV 报表文本(首行列名),权限与 executeSql 相同(守护/白名单/强制 LIMIT)。")
     public String exportReport(String sql) {

@@ -43,6 +43,15 @@ eval-report.md
 *.log
 archive/
 
+### python-agent 本地运行产物(start.sh 产生) ###
+python-agent/.venv/
+python-agent/agent.pid
+__pycache__/
+*.pyc
+
+### 工具本地配置 ###
+.zcodeignore
+
 ### 密钥(绝不提交) ###
 docker/.env
 .env

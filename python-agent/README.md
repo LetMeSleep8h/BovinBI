@@ -35,7 +35,13 @@ Java 做底座、Python 做 AI 能力接入的第一版:提问时在前端自由
 ## 本地运行
 
 ```bash
-# 前提:Java 栈已起(./docker/start-all.sh,/mcp 已开启)
+# 一键脚本(自动选 Python≥3.12 建 .venv、装依赖、后台起服务并等就绪;
+# LLM Key 自动读 docker/.env;完整取数链路需仓库根 ./start-all.sh 先起 Java 栈):
+./start.sh                        # 默认 8090;PORT=8091 ./start.sh 换端口
+./stop.sh                         # 停止(幂等)
+tail -f logs/agent.log            # 实时日志
+
+# 手动方式(等价):
 pip install -r requirements.txt
 JAVA_MCP_URL=http://localhost:8080/mcp uvicorn app.main:app --port 8090
 # 探活(顺带检查到 Java MCP 的连通性)

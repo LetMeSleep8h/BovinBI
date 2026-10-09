@@ -41,6 +41,9 @@ Java 做底座、Python 做 AI 能力接入的第一版:提问时在前端自由
 ./stop.sh                         # 停止(幂等)
 tail -f logs/agent.log            # 实时日志
 
+# Neo4j(study 图数据库):start.sh 自动 docker start 现有 neo4j 容器(NEO4J=0 跳过),
+# stop.sh 一并暂停;浏览器 http://localhost:7474,Bolt bolt://localhost:7687
+
 # 手动方式(等价):
 pip install -r requirements.txt
 JAVA_MCP_URL=http://localhost:8080/mcp uvicorn app.main:app --port 8090

@@ -9,6 +9,8 @@
 #   ./start.sh                    默认端口 8090
 #   PORT=8091 ./start.sh          8090 被占用时换端口
 #   LLM_API_KEY=sk-xxx ./start.sh 显式给 Key
+# Neo4j:默认把 study 用的 neo4j 容器一并拉起(NEO4J=0 跳过);stop.sh 一并暂停
+#        接管现有容器(docker start),不存在时只提示创建命令、不自动建
 # =============================================================================
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -34,6 +36,23 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   echo "   若是 Docker 全栈的容器: docker stop bovinbi-python-agent"
   echo "   或换个端口:             PORT=8091 ./start.sh"
   exit 1
+fi
+
+# ---- Neo4j(可选,NEO4J=0 跳过):study 图数据库,接管现有容器一并拉起 ----
+if [ "${NEO4J:-1}" = "1" ]; then
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' | grep -qx neo4j; then
+      echo "==> Neo4j 容器已在运行(7474/7687)"
+    elif docker ps -a --format '{{.Names}}' | grep -qx neo4j; then
+      echo "==> 启动 Neo4j 容器(浏览器 7474 / Bolt 7687,冷启动约 20~40 秒,后台进行)"
+      docker start neo4j
+    else
+      echo "⚠️  未发现 neo4j 容器,跳过;需要时先创建:"
+      echo "     docker run -d --name neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/<密码> neo4j:5"
+    fi
+  else
+    echo "⚠️  Docker 不可用(colima 未启动?),跳过 Neo4j"
+  fi
 fi
 
 # ---- LLM 模式识别:环境变量优先,缺省回落 docker/.env(只捞 LLM_ 三件套) ----
@@ -96,12 +115,27 @@ echo $! > "$PID_FILE"
 # ---- 就绪等待(进程挂了直接给日志,不傻等) ----
 for i in $(seq 1 30); do
   if curl -sf -m 2 "http://localhost:$PORT/health" >/dev/null 2>&1; then
+    # Neo4j 就绪提示(容器在前面已拉起,这里最多再等 30 秒;等不到不判失败,容器可能还在冷启动)
+    if [ "${NEO4J:-1}" = "1" ]; then
+      for j in $(seq 1 30); do
+        curl -sf -m 2 http://localhost:7474 >/dev/null 2>&1 && break
+        sleep 1
+      done
+    fi
     echo ""
     echo "✅ Python Agent 就绪 [$MODE]"
     echo "   ➜ 探活:  curl http://localhost:$PORT/health"
     echo "   ➜ 提问:  curl -X POST http://localhost:$PORT/v1/answer \\"
     echo "             -H 'Content-Type: application/json' -d '{\"datasetId\":1,\"question\":\"你好\"}'"
     echo "   ➜ 完整取数链路需 Java 底座: 仓库根 ./start-all.sh(默认已对接 localhost:8080/mcp)"
+    if [ "${NEO4J:-1}" = "1" ] && curl -sf -m 2 http://localhost:7474 >/dev/null 2>&1; then
+      # 认证从容器运行时读取(NEO4J_AUTH),不落进仓库
+      AUTH=$(docker inspect neo4j --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+             | grep '^NEO4J_AUTH=' | cut -d= -f2-)
+      echo "   ➜ Neo4j:   http://localhost:7474(${AUTH:-认证见 docker inspect}) | bolt://localhost:7687"
+    elif [ "${NEO4J:-1}" = "1" ]; then
+      echo "   ➜ Neo4j:   仍在冷启动,稍候自查 curl localhost:7474"
+    fi
     echo "   ➜ 停止:  ./stop.sh    实时日志:  tail -f logs/agent.log"
     exit 0
   fi

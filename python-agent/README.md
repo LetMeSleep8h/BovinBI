@@ -1,7 +1,7 @@
 # BovinBI Python Agent(AI 能力层)
 
 Java 做底座、Python 做 AI 能力接入的第一版:提问时在前端自由选择
-「Java 引擎」或「Python Agent」,两条链路独立、可对比评测。
+「Java 引擎」或「Python Agent」,两条链路独立、可A/B对比评测。
 
 ## 技术栈(FastAPI + LangChain + LangGraph)
 

@@ -51,8 +51,6 @@ JAVA_MCP_URL=http://localhost:8080/mcp uvicorn app.main:app --port 8090
 curl http://localhost:8090/health
 ```
 
-## 环境 变量
-
 ## 版本兼容(踩坑实录,改版本前先读)
 
 langgraph 0.6+ 需要 langchain-core≥0.4(与 langchain 0.3.x 冲突);
@@ -62,6 +60,8 @@ mcp 1.10.0 才有 adapters 需要的 `mcp.types.ResourceLink`;
 adapters 0.1.x 的 MultiServerMCPClient **不能** `async with`(0.2 才恢复)。
 可行组合已钉死在 requirements.txt:langchain 0.3.30 / langgraph 0.5.4 /
 adapters 0.1.14 / mcp 1.10.0。
+
+## 环境变量
 
 | 变量 | 默认 | 说明 |
 |---|---|---|

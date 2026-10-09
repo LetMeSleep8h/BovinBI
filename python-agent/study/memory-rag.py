@@ -16,7 +16,7 @@ tool_registry.register_tool(memory_tool)
 rag_tool = RAGTool(knowledge_base_path="./knowledge_base")
 tool_registry.register_tool(rag_tool)
 
-# 创建Agent并配置工具
+# 创建Agent并配置工具，转配模型，工具，提示词
 agent = SimpleAgent(
     name="智能助手",
     llm=llm,

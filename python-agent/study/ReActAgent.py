@@ -127,5 +127,5 @@ if __name__ == '__main__':
     executor.registerTool("Search", "一个网页搜索引擎。需要时事、事实类信息时使用。", search)
     executor.registerTool("SuperOneOne", "一个超级计算器。当需要计算 1+1 等于几时,应使用此工具。", superOneOne)
     react = ReActAgent(llm_client=llm, tool_executor=executor, max_steps=5)  # 3. 组装
-    rep = react.run("计算专业找什么样的工作最好")
+    rep = react.run("1+1=？")
     print(f"最终结果: {rep}")
